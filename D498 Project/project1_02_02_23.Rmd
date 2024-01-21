@@ -1,0 +1,95 @@
+---
+title: "project1"
+output: html_notebook
+---
+```{r}
+if(!require("quanteda")) {install.packages("quanteda"); library("quanteda")}
+if(!require("tidyverse")) {install.packages("tidyverse"); library("tidyverse")}
+if(!require("topicmodels")) {install.packages("topicmodels"); library("topicmodels")}
+if(!require("ldatuning")) {install.packages("ldatuning"); library("ldatuning")}
+if(!require("stm")) {install.packages("stm"); library("stm")}
+if(!require("wordcloud")) {install.packages("wordcloud"); library("wordcloud")}
+```
+
+```{r}
+data = read.delim('/Users/morgan/Desktop/D498 Project/THOR_data/htseq_wt.tsv',header=TRUE)
+sample = data$sample
+length(sample)
+unique_samples = unique(sample)
+length(unique_samples)  # 28 different samples
+gene = data$gene
+unique_genes = unique(gene) 
+length(unique_genes)  # 17244 unique genes 
+count = data$htseq_count
+s_g_c = subset(data, select = -c(condition,organism))
+matrix(s_g_c)
+
+```
+first for the samples
+```{r}
+convert_to_indices = function(vec) {
+  unique_vars = unique(vec)
+  indices = match(vec, unique_vars)
+  return(indices)
+}
+indices_samples = convert_to_indices(sample)
+```
+```\{r}
+# Set the target vector
+vec = sample
+
+# Get the unique character strings and count their occurrences
+unique_vars = unique(vec)
+counts = sapply(unique_vars, function(x) sum(vec == x))
+
+# Calculate the proportions of each unique character string
+proportions = counts / sum(counts)
+
+# Create a new vector of proportional indices (using integers instead of strings)
+indices_samples = rep(1:length(vec), times = round(proportions * length(vec)))
+
+```
+now for the genes
+```{r}
+indices_genes = convert_to_indices(gene)
+indices_genes = indices_genes + 28 # Offset by the indices already created
+```
+
+```\{r}
+# Set the target vector
+vec = gene
+
+# Get the unique character strings and count their occurrences
+unique_vars = unique(vec)
+counts = sapply(unique_vars, function(x) sum(vec == x))
+
+# Calculate the proportions of each unique character string
+proportions = counts / sum(counts)
+
+# Create a new vector of proportional indices (using integers instead of strings)
+indices_genes = rep(len(indices_samples):length(vec), times = round(proportions * length(vec)))
+
+```
+create simple_triplet_matrix
+```{r}
+library(slam)
+a=indices_samples
+b=indices_genes
+c=data$htseq_count
+stm = simple_triplet_matrix(i=a, j=b, v=c, nrow = max(a), ncol = max(b),
+                      dimnames = NULL)
+```
+LDA
+```{r}
+k=5
+lda.model = LDA(stm, k)
+lda.model
+
+```
+
+```{r}
+topic_probs = as.matrix(lda.model@gamma)
+topic_probs
+
+```
+Implemented on 2/2/23

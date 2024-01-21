@@ -1,0 +1,395 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{lmodern}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same} % disable monospaced font for URLs
+\hypersetup{
+  pdftitle={homework5\_b365},
+  pdfauthor={Morgan Fissel},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{homework5\_b365}
+\author{Morgan Fissel}
+\date{2023-03-22}
+
+\begin{document}
+\maketitle
+
+\#Problem 1 - a) Reasoning from this plot, choose a variable and a split
+point for the variable so that the resulting two regions have one that
+contains only Setosa flowers, while the other mixes the other two
+classes.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# We consider Fisher\textquotesingle{}s famous iris data set and visualize data both as scatterplot and pairs plot}
+\CommentTok{\# In classification we try predict the "label" or "class" of an observation from the variables we measure.}
+
+
+\FunctionTok{data}\NormalTok{(iris);         }\CommentTok{\# include the famous iris data}
+\NormalTok{n }\OtherTok{=} \FunctionTok{nrow}\NormalTok{(iris);     }\CommentTok{\# n is number of observations (will usually use "n" for this)}
+\NormalTok{type }\OtherTok{=} \FunctionTok{rep}\NormalTok{(}\DecValTok{0}\NormalTok{,n);}
+\NormalTok{color }\OtherTok{=} \FunctionTok{rep}\NormalTok{(}\DecValTok{0}\NormalTok{,n);}
+
+\NormalTok{type[iris[,}\DecValTok{5}\NormalTok{] }\SpecialCharTok{==} \StringTok{"setosa"}\NormalTok{] }\OtherTok{=} \StringTok{"s"}\NormalTok{;      }\CommentTok{\# class is 5th column.  }
+\NormalTok{type[iris[,}\DecValTok{5}\NormalTok{] }\SpecialCharTok{==} \StringTok{"versicolor"}\NormalTok{] }\OtherTok{=} \StringTok{"c"}\NormalTok{;}
+\NormalTok{type[iris[,}\DecValTok{5}\NormalTok{] }\SpecialCharTok{==} \StringTok{"virginica"}\NormalTok{] }\OtherTok{=} \StringTok{"v"}\NormalTok{;}
+
+\NormalTok{color[iris[,}\DecValTok{5}\NormalTok{] }\SpecialCharTok{==} \StringTok{"setosa"}\NormalTok{] }\OtherTok{=} \DecValTok{1}\NormalTok{;}
+\NormalTok{color[iris[,}\DecValTok{5}\NormalTok{] }\SpecialCharTok{==} \StringTok{"versicolor"}\NormalTok{] }\OtherTok{=} \DecValTok{2}\NormalTok{;}
+\NormalTok{color[iris[,}\DecValTok{5}\NormalTok{] }\SpecialCharTok{==} \StringTok{"virginica"}\NormalTok{] }\OtherTok{=} \DecValTok{3}\NormalTok{;}
+
+
+\CommentTok{\# type is now a vector of "s" or "c" or "v" for 3 types}
+
+
+\CommentTok{\#   here is a scatterplot}
+
+\CommentTok{\#plot(iris[,1],iris[,2],pch=type)  \# scatterplot}
+\FunctionTok{plot}\NormalTok{(iris[,}\DecValTok{3}\NormalTok{],iris[,}\DecValTok{2}\NormalTok{],}\AttributeTok{pch=}\NormalTok{type,}\AttributeTok{col=}\NormalTok{color)  }\CommentTok{\# scatterplot}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{homework5_b365_files/figure-latex/unnamed-chunk-1-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# alternaltively could use}
+\CommentTok{\# plot(iris[,"Sepal.Length"],iris[,"Sepal.Width"],pch=type)}
+
+\CommentTok{\# here is pairs plot}
+
+
+\CommentTok{\#pairs(iris[,1:4],pch=type,col=color,cex=2)   \# pairs plot using all four variables}
+\FunctionTok{print}\NormalTok{(}\StringTok{\textquotesingle{}Split point at x = 2.5 petal length\textquotesingle{}}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] "Split point at x = 2.5 petal length"
+\end{verbatim}
+
+\begin{itemize}
+\item
+  \begin{enumerate}
+  \def\labelenumi{\alph{enumi})}
+  \setcounter{enumi}{1}
+  \tightlist
+  \item
+    For the ``mixed'' region resulting from the first part, choose a
+    variable and split point that separates the Versicolor and Virginica
+    flowers as well as possible.
+  \end{enumerate}
+\end{itemize}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{print}\NormalTok{(}\StringTok{\textquotesingle{}Split point at x = 5 petal length would seperate the Versicolor and Virginica flowers well.\textquotesingle{}}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] "Split point at x = 5 petal length would seperate the Versicolor and Virginica flowers well."
+\end{verbatim}
+
+\begin{itemize}
+\item
+  \begin{enumerate}
+  \def\labelenumi{\alph{enumi})}
+  \setcounter{enumi}{2}
+  \tightlist
+  \item
+    Sketch the resulting three regions over the scatterplot of the two
+    relevant variables, clearly labeling each region with the resulting
+    class.
+  \end{enumerate}
+\end{itemize}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{plot}\NormalTok{(iris[,}\DecValTok{3}\NormalTok{],iris[,}\DecValTok{2}\NormalTok{],}\AttributeTok{pch=}\NormalTok{type,}\AttributeTok{col=}\NormalTok{color)}
+\FunctionTok{abline}\NormalTok{(}\AttributeTok{v =} \FunctionTok{c}\NormalTok{(}\FloatTok{2.5}\NormalTok{, }\DecValTok{5}\NormalTok{), }\AttributeTok{lty =} \DecValTok{2}\NormalTok{, }\AttributeTok{col =} \FunctionTok{c}\NormalTok{(}\StringTok{\textquotesingle{}blue\textquotesingle{}}\NormalTok{, }\StringTok{\textquotesingle{}red\textquotesingle{}}\NormalTok{))}
+\FunctionTok{text}\NormalTok{(}\FloatTok{2.2}\NormalTok{, }\FloatTok{3.5}\NormalTok{, }\StringTok{"setosa"}\NormalTok{, }\AttributeTok{col =} \StringTok{"black"}\NormalTok{)}
+\FunctionTok{text}\NormalTok{(}\FloatTok{3.8}\NormalTok{, }\FloatTok{3.5}\NormalTok{, }\StringTok{"versicolor"}\NormalTok{, }\AttributeTok{col =} \StringTok{"red"}\NormalTok{)}
+\FunctionTok{text}\NormalTok{(}\DecValTok{6}\NormalTok{, }\FloatTok{3.5}\NormalTok{, }\StringTok{"virginica"}\NormalTok{, }\AttributeTok{col =} \StringTok{"green"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{homework5_b365_files/figure-latex/unnamed-chunk-3-1.pdf}
+
+\#Problem 2 - On PDF separate
+
+\#Problem 3 - a) Write a recursive function in R that takes as input the
+number of a node and returns the optimal risk associated with that node,
+with a split penalty of α = .03. When you run your function with input 1
+(the root node) it should return the optimal risk for the entire tree.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{X }\OtherTok{=} \FunctionTok{matrix}\NormalTok{(}\FunctionTok{scan}\NormalTok{(}\StringTok{"tree\_data.dat"}\NormalTok{),}\AttributeTok{byrow=}\NormalTok{T,}\AttributeTok{ncol =} \DecValTok{3}\NormalTok{)}
+\NormalTok{n }\OtherTok{=}\NormalTok{ X[}\DecValTok{1}\NormalTok{,}\DecValTok{1}\NormalTok{] }\SpecialCharTok{+}\NormalTok{ X[}\DecValTok{1}\NormalTok{,}\DecValTok{2}\NormalTok{]}
+
+\NormalTok{optimal\_risk }\OtherTok{=} \ControlFlowTok{function}\NormalTok{(node\_num)\{}
+  \ControlFlowTok{if}\NormalTok{ (X[node\_num,}\DecValTok{3}\NormalTok{]}\SpecialCharTok{==}\DecValTok{1}\NormalTok{)\{}
+\NormalTok{    prune\_cost }\OtherTok{=} \FunctionTok{min}\NormalTok{(X[node\_num,}\DecValTok{1}\NormalTok{],X[node\_num,}\DecValTok{2}\NormalTok{])}
+\NormalTok{    prune\_cost }\OtherTok{=}\NormalTok{ prune\_cost}\SpecialCharTok{/}\NormalTok{n}
+    \FunctionTok{return}\NormalTok{(prune\_cost)}
+\NormalTok{    \}}\ControlFlowTok{else}\NormalTok{\{}
+\NormalTok{      prune\_cost }\OtherTok{=} \FunctionTok{min}\NormalTok{(X[node\_num,}\DecValTok{1}\NormalTok{],X[node\_num,}\DecValTok{2}\NormalTok{])}
+\NormalTok{      prune\_cost }\OtherTok{=}\NormalTok{ prune\_cost}\SpecialCharTok{/}\NormalTok{n}
+\NormalTok{      split\_cost }\OtherTok{=}\NormalTok{ (.}\DecValTok{03} \SpecialCharTok{+} \FunctionTok{optimal\_risk}\NormalTok{(}\DecValTok{2}\SpecialCharTok{*}\NormalTok{node\_num) }\SpecialCharTok{+} \FunctionTok{optimal\_risk}\NormalTok{(}\DecValTok{2}\SpecialCharTok{*}\NormalTok{node\_num}\SpecialCharTok{+}\DecValTok{1}\NormalTok{))}
+      \FunctionTok{return}\NormalTok{(}\FunctionTok{min}\NormalTok{(split\_cost,prune\_cost))}
+\NormalTok{    \}}
+\NormalTok{\}}
+\FunctionTok{optimal\_risk}\NormalTok{(}\DecValTok{1}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0.32
+\end{verbatim}
+
+\begin{itemize}
+\item
+  \begin{enumerate}
+  \def\labelenumi{\alph{enumi})}
+  \setcounter{enumi}{1}
+  \tightlist
+  \item
+    Let Tα=.03 denote the associated optimal tree, as computed in the
+    previous problem. Construct this tree, explicitly giving the
+    classifications associated with each terminal tree node.
+  \end{enumerate}
+\end{itemize}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{X[}\DecValTok{4}\NormalTok{,}\DecValTok{3}\NormalTok{] }\OtherTok{=} \DecValTok{1}
+\NormalTok{Y }\OtherTok{=}\NormalTok{ X[}\DecValTok{1}\SpecialCharTok{:}\DecValTok{7}\NormalTok{,]}
+\FunctionTok{print}\NormalTok{(Y)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##      [,1] [,2] [,3]
+## [1,]   40   60    0
+## [2,]   22   35    0
+## [3,]   18   25    0
+## [4,]   15    5    1
+## [5,]    7   30    1
+## [6,]   12    5    1
+## [7,]    6   20    1
+\end{verbatim}
+
+Terminal nodes are: 4,5,6,7 with respective classifications, +,-,+,-
+
+\begin{itemize}
+\item
+  \begin{enumerate}
+  \def\labelenumi{\alph{enumi})}
+  \setcounter{enumi}{2}
+  \tightlist
+  \item
+    Increase alpha to a value of 0.08 to prune at node 3. And alpha of
+    0.02 should decrease enough to include more splits.
+  \end{enumerate}
+\end{itemize}
+
+\#Problem 4 - a) In the ``rel error'' column we get a value of 0. for
+the 23rd row. Explain what this number means. A relative error of 0 on
+the largest number of splits indicates that the model is fitting the
+training data too closely and is not generalizing well to new data.
+Likely overfitting.
+
+\begin{itemize}
+\item
+  \begin{enumerate}
+  \def\labelenumi{\alph{enumi})}
+  \setcounter{enumi}{1}
+  \tightlist
+  \item
+    In terms of error rate, how well do you think the tree associated
+    with line 23 will perform on different data from the sample
+    population. I could imagine there being a large error rate maybe
+    somewhere above 50\%, because it's overfitting too much to the
+    original data it will likely fail on new data.
+  \end{enumerate}
+\item
+  \begin{enumerate}
+  \def\labelenumi{\alph{enumi})}
+  \setcounter{enumi}{2}
+  \tightlist
+  \item
+    Consider the tree that makes no splits --- i.e.~the one that simply
+    classifies according to the most likely class. How well will this
+    tree classify new data from the same population. The root node error
+    is 0.49161, which means if the tree simply classifies according to
+    the most likely class, it would achieve an accuracy of around 50\%
+    on new data from the same population, this is not very good. The
+    tree will not classify new data from the same population well.
+  \end{enumerate}
+\item
+  \begin{enumerate}
+  \def\labelenumi{\alph{enumi})}
+  \setcounter{enumi}{3}
+  \tightlist
+  \item
+    Judging from the table, what appears to be your best choice of
+    complexity parameter α? In what sense is your α value best? α =
+    0.00517799, because this is the last split where the xerror changes
+    much. Therefore it is the best value to choose.
+  \end{enumerate}
+\end{itemize}
+
+\#Problem 5 - a) Write R code to fill in the matrix z to be as described
+in the problem.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{x }\OtherTok{=} \FunctionTok{matrix}\NormalTok{(}\FunctionTok{c}\NormalTok{(.}\DecValTok{7}\NormalTok{, .}\DecValTok{6}\NormalTok{, .}\DecValTok{5}\NormalTok{, .}\DecValTok{5}\NormalTok{, .}\DecValTok{5}\NormalTok{, .}\DecValTok{5}\NormalTok{, .}\DecValTok{7}\NormalTok{, .}\DecValTok{8}\NormalTok{, .}\DecValTok{7}\NormalTok{, .}\DecValTok{6}\NormalTok{, .}\DecValTok{7}\NormalTok{, .}\DecValTok{9}\NormalTok{, .}\DecValTok{8}\NormalTok{, .}\DecValTok{9}\NormalTok{ ),}\AttributeTok{byrow=}\NormalTok{T,}\AttributeTok{nrow=}\DecValTok{2}\NormalTok{);}
+\NormalTok{z }\OtherTok{=} \FunctionTok{array}\NormalTok{(x,}\FunctionTok{c}\NormalTok{(}\DecValTok{2}\NormalTok{,}\DecValTok{7}\NormalTok{,}\DecValTok{2}\NormalTok{));}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{itemize}
+\item
+  \begin{enumerate}
+  \def\labelenumi{\alph{enumi})}
+  \setcounter{enumi}{1}
+  \tightlist
+  \item
+    Using your z matrix create an R function that receives a vector of 7
+    test answers which are either wrong or right. For instance, if the
+    answers are c(0,0,0,0,1,1,1), that would mean the student answered
+    only the last three questions correctly. The function should return
+    the probability that the student has understood the subject, using a
+    Naive Bayes classifier.
+  \end{enumerate}
+\end{itemize}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{x }\OtherTok{=} \FunctionTok{matrix}\NormalTok{(}\FunctionTok{c}\NormalTok{(.}\DecValTok{7}\NormalTok{, .}\DecValTok{6}\NormalTok{, .}\DecValTok{5}\NormalTok{, .}\DecValTok{5}\NormalTok{, .}\DecValTok{5}\NormalTok{, .}\DecValTok{5}\NormalTok{, .}\DecValTok{7}\NormalTok{, .}\DecValTok{8}\NormalTok{, .}\DecValTok{7}\NormalTok{, .}\DecValTok{6}\NormalTok{, .}\DecValTok{7}\NormalTok{, .}\DecValTok{9}\NormalTok{, .}\DecValTok{8}\NormalTok{, .}\DecValTok{9}\NormalTok{ ),}\AttributeTok{byrow=}\NormalTok{T,}\AttributeTok{nrow=}\DecValTok{2}\NormalTok{);}
+\NormalTok{z }\OtherTok{=} \FunctionTok{array}\NormalTok{(x,}\FunctionTok{c}\NormalTok{(}\DecValTok{2}\NormalTok{,}\DecValTok{7}\NormalTok{,}\DecValTok{2}\NormalTok{));}
+\NormalTok{naive\_bayes }\OtherTok{=} \ControlFlowTok{function}\NormalTok{(answers)\{}
+\NormalTok{  prior\_understand }\OtherTok{=} \FloatTok{0.2}
+\NormalTok{  prior\_not }\OtherTok{=} \FloatTok{0.8} 
+  
+\NormalTok{  probs\_correct }\OtherTok{=}\NormalTok{ z[,,}\DecValTok{2}\NormalTok{] }\SpecialCharTok{*}\NormalTok{ answers }
+\NormalTok{  probs\_incorrect }\OtherTok{=}\NormalTok{ z[,,}\DecValTok{1}\NormalTok{] }\SpecialCharTok{*}\NormalTok{ answers}
+  
+\NormalTok{  understand }\OtherTok{=}\NormalTok{ prior\_understand }\SpecialCharTok{*}\NormalTok{ probs\_correct }\SpecialCharTok{/}\NormalTok{ (probs\_correct }\SpecialCharTok{+}\NormalTok{ probs\_incorrect)}
+\NormalTok{  not }\OtherTok{=}\NormalTok{ prior\_not }\SpecialCharTok{*}\NormalTok{ probs\_incorrect }\SpecialCharTok{/}\NormalTok{ (probs\_correct }\SpecialCharTok{+}\NormalTok{ probs\_incorrect)}
+  
+  \CommentTok{\#understand = prior\_understand * probs\_correct / (sum(answers)/7)}
+  \CommentTok{\#not = prior\_not * probs\_incorrect / ((7{-}sum(answers))/7)}
+  \FunctionTok{return}\NormalTok{(understand)}
+  
+\NormalTok{\}}
+\NormalTok{answers }\OtherTok{=} \FunctionTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{,}\DecValTok{0}\NormalTok{,}\DecValTok{0}\NormalTok{,}\DecValTok{0}\NormalTok{,}\DecValTok{1}\NormalTok{,}\DecValTok{1}\NormalTok{,}\DecValTok{1}\NormalTok{)}
+\FunctionTok{naive\_bayes}\NormalTok{(answers)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##      [,1] [,2] [,3] [,4] [,5] [,6] [,7]
+## [1,]  NaN  NaN  0.1  0.1  NaN  NaN  0.1
+## [2,]  NaN  NaN  0.1  NaN  NaN  0.1  0.1
+\end{verbatim}
+
+\end{document}

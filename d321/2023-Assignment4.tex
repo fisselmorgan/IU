@@ -1,0 +1,494 @@
+\documentclass[12pt]{exam}
+\usepackage{xifthen} %conditionals, to make writing different versions easier
+\usepackage{latexsym}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{mathtools}
+
+\usepackage{textcomp}
+%\usepackage{qtree}      %for truth trees
+%\usepackage{fitch}      %for Fitch-style natural deduction proofs
+\usepackage{centernot}
+
+\usepackage{xcolor}
+\newcommand{\red}[1]{{\color{red}#1}}
+\newcommand{\green}[1]{{\color{teal}#1}}
+\newcommand{\blue}[1]{{\color{blue}#1}}
+\newcommand{\purple}[1]{{\color{purple}#1}}
+\newcommand{\orange}[1]{{\color{orange}#1}}
+\newcommand{\violet}[1]{{\color{violet}#1}}
+\usepackage{ulem}
+
+\newcommand{\redbullet}{\red{\bullet}}
+
+\newcommand\FV[1]{\mbox{\rm FV}(#1)}
+\newcommand{\boy}[1]{\mbox{\tt boy}(#1)}
+\newcommand{\girl}[1]{\mbox{\tt girl}(#1)}
+\newcommand{\knows}[2]{\mbox{\tt knows}(#1,#2)}
+\newcommand{\expand}{{\tt expand}}
+\newcommand{\mortal}{\tt mortal}
+\newcommand{\human}{{\tt human}}
+\newcommand{\spartan}{{\tt spartan}}
+\newcommand{\brave}{{\tt brave}}
+\newcommand{\greek}{{\tt greek}}
+\newcommand{\perfect}{{\tt perfect}}
+\newcommand{\wise}{{\tt wise}}
+\newcommand{\philosopher}{{\tt philosopher}}
+\newcommand{\mathematician}{{\tt mathematician}}
+\newcommand{\admires}{{\tt admires}}
+\newcommand{\critic}{{\tt critic}}
+\newcommand{\contradicts}{{\tt contradicts}}
+\newcommand{\rectangle}{{\tt rectangle}}
+\newcommand{\figre}{{\tt figure}}
+\newcommand{\draw}{{\tt draws}}
+\newcommand{\painting}{{\tt painting}}
+\newcommand{\constant}[1]{{\bf #1}}
+
+\newcommand{\takes}[2]{\mathtt{takes}(#1,#2)}
+\newcommand{\teaches}[2]{\mathtt{teaches}(#1,#2)}
+\newcommand{\enroll}[2]{\mathtt{enroll}(#1,#2)}
+
+\newcommand{\person}[1]{\mathtt{person}(#1)}
+\newcommand{\student}[1]{\mathtt{student}(#1)}
+\newcommand{\major}[2]{\mathtt{hasMajor}(#1,#2)}
+\newcommand{\professor}[1]{\mathtt{professor}(#1)}
+\newcommand{\course}[1]{\mathtt{course}(#1)}
+
+\newcommand*{\defeq}{\mathrel{\vcenter{\baselineskip0.5ex \lineskiplimit0pt
+                     \hbox{\scriptsize.}\hbox{\scriptsize.}}}%
+                     =}
+
+\newcommand{\wicked}{{\tt wicked}}
+\newcommand{\UI}{{\tt UI}}
+\newcommand{\EI}{{\tt EI}}
+\newcommand{\UG}{{\tt UG}}
+\newcommand{\EG}{{\tt EG}}
+
+\newcommand{\slide}{\qquad\qquad\qquad\qquad\qquad}
+
+\newcommand{\argument}[3]
+{\begin{center}
+ \begin{tabular}{l}
+ #1 \\
+ #2 \\ \hline
+ #3 
+ \end{tabular}
+ \end{center}
+}
+
+\newcommand{\argumentthree}[4]
+{\begin{center}
+ \begin{tabular}{l}
+ #1 \\
+ #2 \\ 
+ #3 \\ \hline
+ #4 
+ \end{tabular}
+ \end{center}
+}
+
+\newcommand{\argumentone}[2]
+{\begin{center}
+ \begin{tabular}{l}
+ #1 \\ \hline
+ #2 
+ \end{tabular}
+ \end{center}
+}
+
+\newcommand{\li}[3]
+{\begin{center}
+ \begin{tabular}{l}
+ $#1$, \\
+ $#2$ \\ 
+ $\Limplies$ \\
+ $#3$
+ \end{tabular}
+ \end{center}
+}
+
+
+\newcommand{\lithree}[4]
+{\begin{center}
+ \begin{tabular}{l}
+ $#1$, \\
+ $#2$ \\ 
+ $#3$ \\
+ $\Limplies$ \\
+ $#4$
+ \end{tabular}
+ \end{center}
+}
+
+
+
+\newcommand{\lione}[2]
+{\begin{center}
+ \begin{tabular}{l}
+ $#1$ \\
+ $\Limplies$ \\
+ $#2$
+ \end{tabular}
+ \end{center}
+}
+
+\newcommand{\bs}{\textbackslash}
+\newcommand{\st}{\mathrel{\vert}}
+\newcommand{\Or}{\mathbin{\vee}}
+\newcommand{\relor}{\mathrel{\vee}}
+\renewcommand{\And}{\mathbin{\wedge}}
+\newcommand{\reland}{\mathrel{\wedge}}
+\newcommand{\Implies}{\mathbin{\rightarrow}}
+\newcommand{\Lequiv}{\mathbin{\equiv}}
+\newcommand{\Limplies}{\mathbin{\vDash}}
+\newcommand{\Iff}{\mathbin{\leftrightarrow}}
+\newcommand{\Not}{\mathop{\neg}}
+\newcommand{\Nor}{\mathbin{\downarrow}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\nothing}{\varnothing}
+\newcommand{\power}{\mathop{\mathcal{P}}}
+\newcommand{\Univ}{\mathcal{U}}
+\newcommand{\isect}{\mathbin{\cap}}
+\newcommand{\union}{\mathbin{\cup}}
+\newcommand{\comp}[1]{\overline{#1}}
+\newcommand{\blank}{\underline{\hspace{1em}}}
+\newcommand{\newterm}[1]{\textbf{#1}}
+\newcommand{\True}{\mathrm{T}}
+\newcommand{\False}{\mathrm{F}}
+\newcommand{\T}{\True}
+\newcommand{\F}{\False}
+\newcommand{\<}{\langle}
+\renewcommand{\>}{\rangle}
+\newcommand{\attn}[1]{\textbf{#1}}
+\newcommand{\note}[1]{{\footnotesize \textbf{Note:} \textit{#1}}}
+\newcommand{\openbranch}{$\circ$}
+\newcommand{\closebranch}{$\times$}
+
+\newcommand{\cM}{\mathcal{M}}
+\newcommand{\cI}{\mathcal{I}}
+\newcommand{\cJ}{\mathcal{J}}
+\newcommand{\cN}{\mathcal{N}}
+
+\theoremstyle{definition}   %bold header, roman body
+ \newtheorem{example}{Example}
+ \newtheorem*{question}{Question}
+ \newtheorem*{answer}{Answer}
+ \newtheorem*{claim}{Claim}
+
+
+
+\begin{document}
+\pagestyle{headandfoot}
+\firstpageheader{\bf DSCI-D 321 Assignment  4 \\
+                      Instructor: Dirk Van Gucht
+                }{}{Assigned Thursday, February 16, 2023\\
+                    Due Wednesday 1, 2023 
+				}
+
+
+
+\vfill
+\noindent
+{\bf Discussed assignment with}:
+\noindent
+\vskip 3cm
+In this assignment, you will be asked to write sentences and queries in Predicate Logic, SQL and
+Python.   You will also be required to test your SQL and Python code on some data.
+
+You will need to use PostgreSQL to implement your SQL code.
+And, you will need a Python programming language environment to implement your Python code.
+
+Along with this assignment, there are two files 
+\begin{center}
+`{\tt assignment4Script.sql}' and `{\tt assignment4Script.py}'
+\end{center}
+that contain
+the data that you will need to use for this assignment.
+
+You will need to submit 3 files:
+\begin{enumerate}
+\item A file with name `{\tt assignment4.pdf}' 
+that contains the solutions for problems indicated with a red bullet $\redbullet$.
+This file should be generated using Latex;
+\item A file with name `{\tt assignment4.sql}' that contains
+the solutions for the problems requiring SQL code; and 
+\item A file with name `{\tt assignment4.py}' that contains
+solutions for the problems requiring Python code.
+\end{enumerate}
+
+\bigskip
+Each problem or subproblem is worth 10 points.
+
+\newpage
+%\newpage
+%\paragraph {Preliminaries}
+%
+%Consider three domains `$\mathbf{P}$' (the domain of persons), `$\mathbf{C}$' (the domain of courses),
+%and `$\mathbf{M}$' (the domain of majors).
+%
+%\begin{itemize}
+%\item Variables that range over `$\mathbf{P}$' should be named $p$, $p_1$, $p_2$, etc.
+%\item Variables that range over `$\mathbf{C}$' should be named $c$, $c_1$, $c_2$, etc.
+%\item Variables that range over `$\mathbf{M}$' should be named $m$, $m_1$, $m_2$, etc.
+%\end{itemize}
+%
+%
+%Consider the following unary predicates
+%\begin{center}
+%\begin{tabular}{lcl}
+%$\student{p}$ & $\defeq$ & ``person $p$ is a student"\\
+%$\professor{p}$ & $\defeq$ & ``person $p$ is a professor"\\
+%\end{tabular}
+%\end{center}
+%and consider the following binary predicates
+%\begin{center}
+%\begin{tabular}{lcl}
+%$\major{p}{m}$& &  ``person $p$ has major $m$"\\
+%$\enroll{p}{c}$ &&  ``person $p$ is enrolled (i.e., takes) course $c$" \\
+%$\teaches{p}{c}$ &&  ``person $p$ takes course $c$" \\
+%$\knows{p_1}{p_2}$ &&  ``person $p_1$ knows person $p_2$" \\
+%\end{tabular}
+%\end{center}
+%
+%\newpage
+
+%\paragraph{Expressing Predicate Logic Sentences in SQL and Python}
+\medskip
+\begin{questions}
+  \question $\redbullet$\ The domain of the following predicates is the set of all plants.
+  Consider the following predicates:
+  
+  \begin{center}
+  \begin{tabular}{lcl}
+  $P(x)$ & $=$ & ``$x$ is poisonous." \\
+  $Q(x)$ & $=$ & ``Jeff has eaten $x$." \\
+  \end{tabular}
+  \end{center}
+
+Express the following sentences into Predicate Logic.
+\begin{parts}
+\item ``Some plants are not poisonous." \\
+$\exists x (\neg P(x)) $
+\item ``Jeff has eaten a poisonous plant as well as a non-poisonous plant." \\
+$\exists x \exists y (P(x) \land \neg P(y) \land Q(x) \land Q(y)) $
+\item ``There are some non-poisonous plants that Jeff has not eaten." \\
+$\exists x (\neg P(x) \land \neg Q(x))$
+\end{parts}
+
+
+  \question $\redbullet$\ The domain of the following predicates is the set of all books.
+  Consider the following predicates:
+  
+  \begin{center}
+  \begin{tabular}{lcl}
+  $H(x)$ & $=$ & ``$x$ is heavy." \\
+  $C(x)$ & $=$ & ``$x$ is confusing." \\
+  \end{tabular}
+  \end{center}
+
+Express the following Predicate Logic sentences into ordinary English.
+\begin{parts}
+\item $\forall x\, (H(x) \Implies C(x))$. \\
+"If a book is heavy, it is confusing."
+\item $\Not \exists x (H(x) \And \Not C(x))$. \\
+"There is not a heavy book that is not confusing."
+\item $\forall x\, (H(x) \Implies (\exists x\, C(x))$. \\
+"If all the books are heavy, there is a book that is confusing."
+\end{parts}
+
+\question\label{predicateLogic} 
+$\redbullet$\ 
+Consider the predicates $P(x)$, $M(x)$, and
+$A(x,y)$ in a domain of people.  The predicate $P(x)$
+states of a person that he or she is a philosopher, the predicate $M(x)$ states
+of a person that he or she is a mathematician, and the predicate $A(x,y)$ states
+that $x$ is an admirer of $y$.  Write a sentence in Predicate Logic for
+the following natural languages sentences.
+
+\begin{parts}
+\part Each philosopher admires a mathematician.\\
+$\forall x \exists y (P(x) \to (M(y) \land A(x, y)))$
+\part Not everyone admires a philosopher who is also a mathematician. \\
+$\neg \forall x(P(x) \land M(x) \to \exists y(A(x, y) \land P(y) \land M(y)))$
+\part Some person admires all philosophers but only some mathematicians. \\
+$\exists z \forall x ((P(x) \land \neg M(x)) \to A(z, x)) \land (\exists y (M(y) \land A(z, y)))$
+\part Some person admires a philosopher or a mathematician, but not both. \\
+$\exists x \forall y \forall z ((P(y) \land M(z) \land y \neq z) \to ((A(x,y) \land \neg A(x,z)) \lor (\neg A(x,y) \land A(x,z))))$
+\end{parts}
+%\newpage
+
+\question $\redbullet$\ Reconsider the predicates of question~\ref{predicateLogic}.
+
+Express the following queries in the Predicate Logic.
+
+\begin{parts}
+\part Find each person who admires a philosopher. \\
+$\exists x \exists y (P(y) \land A(x,y))$
+\part Find each philosopher who admires a mathematician who admires all philsophers.
+$\exists x \exists y ((P(y) \land \forall z (P(z) \rightarrow A(y,z))) \land M(x) \land \forall z (P(z) \rightarrow (A(x,z) \land A(y,x))))$
+\part Find each pair of persons $(x,y)$ such that if $x$ admires a philosopher then $y$ also admires that philosopher.\\
+$\forall x \forall y ((\exists z(P(z) \land A(x,z))) \land (A(x,y) \rightarrow (\exists z(P(z) \land A(y,z))))$
+\end{parts}
+
+\newpage
+\paragraph{Expressing sentences and queries in SQL and Python} \ 
+
+
+\noindent
+Consider three domains `$\mathbf{P}$' (the domain of persons), `$\mathbf{C}$' (the domain of courses),
+and `$\mathbf{M}$' (the domain of majors).
+
+\begin{itemize}
+\item Variables that range over `$\mathbf{P}$' should be named $p$, $p_1$, $p_2$, etc.
+\item Variables that range over `$\mathbf{C}$' should be named $c$, $c_1$, $c_2$, etc.
+\item Variables that range over `$\mathbf{M}$' should be named $m$, $m_1$, $m_2$, etc.
+\end{itemize}
+
+
+Consider the unary predicates
+\begin{center}
+\begin{tabular}{lcl}
+$\student{p}$ & $\defeq$ & ``person $p$ is a student"\\
+$\professor{p}$ & $\defeq$ & ``person $p$ is a professor"\\
+\end{tabular}
+\end{center}
+and the binary predicates
+\begin{center}
+\begin{tabular}{lcl}
+$\major{p}{m}$& &  ``person $p$ has major $m$"\\
+$\enroll{p}{c}$ &&  ``person $p$ is enrolled in (i.e., takes) course $c$" \\
+$\teaches{p}{c}$ &&  ``person $p$ takes course $c$" \\
+$\knows{p_1}{p_2}$ &&  ``person $p_1$ knows person $p_2$" \\
+\end{tabular}
+\end{center}
+
+
+
+
+%For each of the following Predicate Logic sentences, 
+%write an SQL statement and a Python statement that expresses this sentence.
+%Then evaluate these statements in PostgreSQL and Python.
+%As data you should used the data in the `{\tt assignment4.sql}' and
+%`{\tt assignment4.py}' files.    
+
+%%\begin{questions}
+
+
+\question
+
+
+
+
+Consider the sentence ``\emph{Some student knows a professor who teaches the `Databases' course.}''
+This sentence can be expressed in Predicate Logic as follows:
+\begin{multline*}
+\exists p_1(\student{p_1}\,\And\, \exists p_2( \professor{p_2} \And \knows{p_1}{p_2}\And 
+\teaches{p_2}{\mathbf{Databases}})).
+\end{multline*}
+\begin{parts}
+\item  Express this Predicate Logic sentence as an SQL statement.   Place your answer in the `{\tt assignment4.sql}' file.
+\item  Express this Predicate Logic sentence as a Python statement.   Place your answer in the `{\tt assignment4.py}' file.
+\end{parts}
+
+\question 
+Consider the sentence ``\emph{Each course taught by professor `Anna' is taken by at least two students}."
+This sentence can be expressed in Predicate Logic as follows:
+\begin{multline*}
+\forall c((\teaches{c}{\mathbf{Anna}}\And \professor{\mathbf{Anna}} \Implies \\
+\exists p_1\exists p_2(p_1\neq p_2\And \student{p_1}\And \student{p_2}\And \enroll{p_1}{c} \And \enroll{p_2}{c})).
+\end{multline*}
+\begin{parts}
+\part  Express this Predicate Logic sentence as an SQL statement.   Place your answer in the `{\tt assignment4.sql}' file.
+\part  Express this Predicate Logic sentence as a Python statement.   Place your answer in the `{\tt assignment4.py}' file.
+\part Rewrite the Predicate Logic sentence above into a logically equivalent Predicate Logic sentence in which only existential quantifiers ($\exists$) appear.
+In other words, rewrite all the universal quantifiers.
+(Hint: use Replacement Laws of Predicate Logic for quantifiers and Predicate Logic sentences.)
+\part  Express the resulting Predicate Logic sentence as an SQL statement.   Place your answer in the `{\tt assignment4.sql}' file.
+\part  Express the resulting Predicate Logic sentence as a Python statement.   Place your answer in the `{\tt assignment4.py}' file.
+\end{parts}
+
+
+
+%\newpage
+
+%\paragraph{Expressing Predicate Logic Queries in SQL and Python}
+%\vskip 1cm
+%\noindent
+%For each of the following Predicate Logic queries, you will be asked to 
+%write an SQL query and a Python query (i.e., comprehension) that expresses this query.
+%Then evaluate this query in PostgreSQL and Python.
+%As data you should used the data in the `{\tt assignment4.sql}' and
+%`{\tt assignment4.py}' files.
+
+\question
+Consider the query ``\emph{Find the majors of students who are enrolled in the course `Algorithms'}."
+\begin{parts}
+\item  Express this query as an SQL query.   Place your answer in the `{\tt assignment4.sql}' file.
+\item  Express this query as a Python query (comprehension).   Place your answer in the `{\tt assignment4.py}' file.
+\end{parts}
+
+\question
+Consider the query ``\emph{Find each student who knows a student who takes a taught by Professor `Emma' or a course taught by professor `Arif' or a
+course taught by professor `Anna'.}"
+
+\begin{parts}
+\item  Express this query as an SQL query.   Place your answer in the `{\tt assignment4.sql}' file.
+\item  Express this query as a Python query (comprehension).   Place your answer in the `{\tt assignment4.py}' file.
+\end{parts}
+
+\question
+Consider the query ``\emph{Find each pair of different students who both know a same professor who teaches the course `Databases'}."
+
+\begin{parts}
+\item  Express this query as an SQL query.   Place your answer in the `{\tt assignment4.sql}' file.
+\item  Express this query as a Python query (comprehension).   Place your answer in the `{\tt assignment4.py}' file.
+\end{parts}
+
+\question
+Consider the query ``\emph{Find each professor who only teaches courses taken by all students who major in `DataScience'.}''
+
+\begin{parts}
+\item  Express this query as an SQL query.   Place your answer in the `{\tt assignment4.sql}' file.
+\item  Express this query as a Python query (comprehension).   Place your answer in the `{\tt assignment4.py}' file.
+\end{parts}
+
+\question
+Consider the query ``\emph{Find each professor who does not know any student who majors in both `DataScience' and in `Chemistry'}."
+\begin{parts}
+\item  Express this query as an SQL query.   Place your answer in the `{\tt assignment4.sql}' file.
+\item  Express this query as a Python query (comprehension).   Place your answer in the `{\tt assignment4.py}' file.
+\end{parts}
+
+\question\label{sentenceThree} Consider the sentence ``\emph{Find each pair of different students who have a common major and who take none of the courses taught by professor `Pedro'}."
+
+\begin{parts}
+\item  Express the resulting sentence as an SQL statement.   Place your answer in the `{\tt assignment4.sql}' file.
+\item  Express the resulting sentence as a Python statement.   Place your answer in the `{\tt assignment4.py}' file.
+\end{parts}
+
+%\newpage
+%\paragraph{Predicate Logic semantics}
+%
+%\medskip
+%\noindent
+%The following questions rely on an understanding of the semantics of Predicate Logic.
+%You should answer these question in the space provided.
+%
+%\question
+%Prove, without use the Replacement Laws for quantifiers, that 
+%\[\Not \forall x\, (P(x)\Implies Q(x)) \Lequiv \exists x (P(x)\And \Not Q(x)).\]
+%I.e., use the method of expanding universal and existential quantifiers to establish this logical equivalence.
+%\vskip 6 cm
+%\newpage
+%\question
+%Use replacement laws for Predicate Logic to establish the following logical equivalence:
+%\[\forall x\left(((P(x) \Implies Q(y))\And \Not Q(y))\Implies \Not P(x)\right)\Lequiv \mathbf{T}.\]
+\end{questions}
+
+\end{document}
+

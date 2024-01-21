@@ -1,0 +1,278 @@
+---
+title: "hw7"
+author: "Morgan Fissel"
+date: "3/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Question 1
+```{r}
+analyze_two_by_two_table = function(x,y=NULL,signif_level=0.01){
+  ##################
+  ## For Task 3.0 ##
+  ##################
+  # if x is not a matrix, it treats x and y as factor variables
+  
+  if("matrix" %in% class(x)){
+    N = x
+  }else if("table" %in% class(x)){
+    N = matrix(x,2,2)
+    dimnames(N) = dimnames(x)
+  }else{
+    N = table(x,y)
+  }
+  
+  ##################
+  ## End Task 3.0 ##
+  ##################
+  
+  #################################
+  ## Start Functions for fitting ##
+  #################################
+  # now we input the MLE functions
+  # this is just copying and pasting from above
+  mle_two_by_two_table_full = function(N){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    joint_probs = N/sum(N)
+    row_probs = rowSums(joint_probs)
+    col_probs = colSums(joint_probs)
+    log_odds_ratio = log(joint_probs[1,1])-log(joint_probs[1,2])+
+      log(joint_probs[2,2])-log(joint_probs[2,1])
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = sum(N*log(joint_probs))
+    return(list(theta=theta,loglik=loglik))
+  }
+  mle_two_by_two_table_independent = function(N){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    row_probs = rowSums(N)/sum(N)
+    col_probs = colSums(N)/sum(N)
+    joint_probs = outer(row_probs,col_probs,"*")
+    log_odds_ratio = 0
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = sum(N*log(joint_probs))
+    return(list(theta=theta,loglik=loglik))
+  }
+  mle_two_by_two_table_fixed_log_odds_ratio = function(N,log_odds_ratio_0){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    f = function(theta_trans){
+      col_probs = 1/(1+exp(c(-1,1)*theta_trans[1]))
+      joint_probs = matrix(NA,2,2)
+      col_1_cond_probs = 1/(1+exp(c(-1,1)*theta_trans[2]))
+      joint_probs[,1] = col_probs[1]*col_1_cond_probs
+      col_2_cond_probs = c(NA,NA)
+      col_2_cond_probs[1] = col_1_cond_probs[1]/
+        (col_1_cond_probs[2]*exp(log_odds_ratio_0)+col_1_cond_probs[1])
+      col_2_cond_probs[2] = 1-col_2_cond_probs[1]
+      joint_probs[,2] = col_probs[2]*col_2_cond_probs
+      joint_probs[,2] = col_probs[2]*col_2_cond_probs
+      loglik = sum(N*log(joint_probs))
+    }
+    control = list(fnscale=-1,maxit=1000,reltol=1e-12)
+    opt = optim(c(0,0),f,control=control)
+    opt_trans = opt$par
+    col_probs = 1/(1+exp(c(-1,1)*opt_trans[1]))
+    joint_probs = matrix(NA,2,2)
+    col_1_cond_probs = 1/(1+exp(c(-1,1)*opt_trans[2]))
+    joint_probs[,1] = col_probs[1]*col_1_cond_probs
+    col_2_cond_probs = c(NA,NA)
+    col_2_cond_probs[1] = col_1_cond_probs[1]/
+      (col_1_cond_probs[2]*exp(log_odds_ratio_0)+col_1_cond_probs[1])
+    col_2_cond_probs[2] = 1-col_2_cond_probs[1]
+    joint_probs[,2] = col_probs[2]*col_2_cond_probs
+    row_probs = rowSums(joint_probs)
+    col_probs = colSums(joint_probs)
+    log_odds_ratio = log_odds_ratio_0
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = opt$value
+    return(list(theta=theta,loglik=loglik))
+  }
+  ###############################
+  ## End Functions for fitting ##
+  ###############################
+  
+  
+  # now we start doing new things
+  # for now, we are going to use meaningless placeholders
+  # you will replace these placeholders later
+  
+  ##################
+  ## For Task 3.1 ##
+  ##################
+  
+  # replace with actual fit under HA
+  fit_HA = mle_two_by_two_table_full(N)
+  # replace with actual fit under H0
+  fit_H0 = mle_two_by_two_table_independent(N)
+  # replace with actual LRT stat
+  lambda = 2*(fit_HA$loglik - fit_H0$loglik)
+  cutoff = qchisq(1 - signif_level,1)
+  decision = ifelse(lambda>cutoff,"Reject H_0: Independence","Fail to reject H_0: Independence")
+  AIC_H0_minus_HA = lambda-2
+  p_val = pchisq(lambda,1,lower.tail = FALSE)
+  ##################
+  ## End Task 3.1 ##
+  ##################
+  
+  ##################
+  ## For Task 3.2 ##
+  ##################
+  # confidence interval
+  lambda_fun = function(log_odds_ratio_0=0,N,signif_level=0.01){
+    fit_H0 = mle_two_by_two_table_fixed_log_odds_ratio(N,log_odds_ratio_0)
+    fit_HA = mle_two_by_two_table_full(N)
+    lambda = 2*(fit_HA$loglik - fit_H0$loglik) #lrt
+    cutoff = qchisq(1 - signif_level,1)
+    decision = ifelse(lambda>cutoff,"Reject H_0: Independence","Fail to reject H_0: Independence")
+    AIC_H0_minus_HA = lambda-2
+    p_val = pchisq(lambda,1,lower.tail = FALSE)
+    if(p_val <= 0){
+      return(Inf)
+    }else{
+      return(lambda-cutoff)
+    }
+  }
+
+
+  ##################
+  ## End Task 3.2 ##
+  ##################
+  
+  ##################
+  ## For Task 3.3 ##
+  ##################
+  # confidence interval
+  lambda_fun = function(log_odds_ratio_0=0,N=x,signif_level=0.01){
+    fit_H0 = mle_two_by_two_table_fixed_log_odds_ratio(N,log_odds_ratio_0)
+    fit_HA = mle_two_by_two_table_full(N)
+    lambda = 2*(fit_HA$loglik - fit_H0$loglik) #lrt
+    cutoff = qchisq(1 - signif_level,1)
+    decision = ifelse(lambda>cutoff,"Reject H_0: Independence","Fail to reject H_0: Independence")
+    AIC_H0_minus_HA = lambda-2
+    p_val = pchisq(lambda,1,lower.tail = FALSE)
+    if(p_val <= 0){
+      return(Inf)
+    }else{
+      lrt_stat_minus_cutoff = lambda-cutoff
+      return(lrt_stat_minus_cutoff)
+    }
+  }
+
+  theta_hat = mle_two_by_two_table_full(N)$theta$log_odds_ratio
+  interval = c(theta_hat-1,theta_hat) #for the lower bound, using the constraint and the MLE
+  lb = uniroot(lambda_fun,interval,extendInt = "downX",tol = 1e-10,maxiter=10000) #extendInt="downX" is       actually doing nothing here becasue of the constraint
+  interval = c(theta_hat,theta_hat+1) #for the upper bound, MLE to MLE+10 (+10 was arbitrary and I could probably have been more clever    in how I chose it)
+  ub = uniroot(lambda_fun,interval,extendInt = "upX",tol = 1e-10,maxiter=10000) #extendint="upX" is           extending the interval looking for an up crossing. This is in case the +10 was not enough.
+  #return(c(estimate=theta_hat,lb=lb$root,ub=ub$root))
+
+  
+
+  ##################
+  ## End Task 3.3 ##
+  ##################
+  
+  return(list(
+    fit_HA=fit_HA,
+    fit_H0=fit_H0,
+    lambda=lambda,
+    AIC_H0_minus_HA=AIC_H0_minus_HA,
+    cutoff=cutoff,
+    decision=decision,
+    p_val=p_val,
+    signif_level=signif_level,
+    conf_level=1-signif_level,
+    conf_int=c(lb,ub)
+    ))
+  }
+```
+```{r}
+UCB_agg_over_dept = apply(UCBAdmissions,c(1,2),sum)
+analyze_two_by_two_table(UCB_agg_over_dept)
+```
+a)
+p-val = 4.167175e-22
+extremely small/close to 0.
+b)
+conf_int$root 
+[1] 0.7756045
+
+```{r}
+dept_A = UCBAdmissions[,,'A']
+analyze_two_by_two_table(dept_A)
+
+dept_B = UCBAdmissions[,,'B']
+analyze_two_by_two_table(dept_B)
+
+dept_C = UCBAdmissions[,,'C']
+analyze_two_by_two_table(dept_C)
+
+dept_D = UCBAdmissions[,,'D']
+analyze_two_by_two_table(dept_D)
+
+dept_E = UCBAdmissions[,,'E']
+analyze_two_by_two_table(dept_E)
+
+```
+c)
+p_vals = (1.270705e-05, A)
+          (0.611054, B)
+          (0.3861648, C)
+          (0.585223, D)
+          (0.319648, E)
+        
+d)
+Intervals above
+e)
+There is quite a difference in agg p_val, vs. non-agg, seems like there is inconsistency
+between the aggregate data, and the non-aggregate data. Not sure what is causing this, but I would assume it has something to do with the sum, we use for the agg.
+
+Question 2
+```{r}
+dept_A = UCBAdmissions[,,'A']
+analyze_two_by_two_table(dept_A,signif_level = 0.01/6)
+
+dept_B = UCBAdmissions[,,'B']
+analyze_two_by_two_table(dept_B,signif_level = 0.01/6)
+
+dept_C = UCBAdmissions[,,'C']
+analyze_two_by_two_table(dept_C,signif_level = 0.01/6)
+
+dept_D = UCBAdmissions[,,'D']
+analyze_two_by_two_table(dept_D,signif_level = 0.01/6)
+
+dept_E = UCBAdmissions[,,'E']
+analyze_two_by_two_table(dept_E,signif_level = 0.01/6)
+```
+b) conclusions may change, but not by much.
+```{r}
+dept_A = UCBAdmissions[,,'A']
+analyze_two_by_two_table(dept_A,signif_level = (1-0.99)^(1/6))
+
+dept_B = UCBAdmissions[,,'B']
+analyze_two_by_two_table(dept_B,signif_level = (1-0.99)^(1/6))
+
+dept_C = UCBAdmissions[,,'C']
+analyze_two_by_two_table(dept_C,signif_level = (1-0.99)^(1/6))
+
+dept_D = UCBAdmissions[,,'D']
+analyze_two_by_two_table(dept_D,signif_level = (1-0.99)^(1/6))
+
+dept_E = UCBAdmissions[,,'E']
+analyze_two_by_two_table(dept_E,signif_level = (1-0.99)^(1/6))
+```
+c) Once again everything stays pretty much the same.

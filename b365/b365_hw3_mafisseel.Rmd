@@ -1,0 +1,257 @@
+---
+title: "b365_hw3_mafissel"
+author: "Morgan Fissel"
+date: "2023-02-14"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Problem 1
+a) Write an expression for P(A|not favor)
+P(A) * P(not favor|A) / P(not favor)
+```{r}
+cat('P(A|not favor) = (1 - P(favor|A)) * P(A) / ( (1 - P(favor|A)) * P(A) + (1 - P(favor|B)) * P(B) + (1 - P(favor|C)) * P(C) )')
+```
+b) What is the probability this person is a member of party A given they do not favor the ballot?
+```{r}
+P_A = 0.2
+P_B = 0.3
+P_C = 0.5
+P_favor_A = 0.3
+P_favor_B = 0.5
+P_favor_C = 0.9
+P_not_favor_A = 0.7
+P_not_favor_B = 0.5
+P_not_favor_C = 0.1
+P_not_favor = (1 - P_favor_A) * P_A + (1 - P_favor_B) * P_B + (1 - P_favor_C) * P_C
+P_A_not_favor = (1 - P_favor_A) * P_A / P_not_favor
+P_A_not_favor
+```
+c)  What is the probability this person is a member of party B?
+```{r}
+P_B_not_favor = (1 - P_favor_B) * P_B / P_not_favor
+P_B_not_favor
+```
+d) What is the probability this person is a member of party C?
+```{r}
+P_C_not_favor = (1 - P_favor_C) * P_C / P_not_favor
+P_C_not_favor
+```
+e) Simulate this experiment in R with 10,000 individuals and, using your experiment, give an estimate of the probability of political party A for individuals who favor the ballot measure. P(A|favor)
+```{r}
+set.seed(123)
+n = 10000
+parties = sample(c("A", "B", "C"), size = n, replace = TRUE, prob = c(P_A, P_B, P_C))
+sum(parties == 'A') / n 
+favor = rep(0, n)
+favor[parties == "A"] = rbinom(sum(parties == "A"), size = 1, prob = P_favor_A)
+favor[parties == "B"] = rbinom(sum(parties == "B"), size = 1, prob = P_favor_B)
+favor[parties == "C"] = rbinom(sum(parties == "C"), size = 1, prob = P_favor_C)
+P_favor_given_A = sum(favor[parties == "A"]) / sum(parties == "A")
+```
+.1949 or ~19.5%
+f) Suppose we attend a wine festival in the state and meet a person at this event. In conversation it comes up that the person does not favor the measure. Does the probability computed above in part 1 apply to this individual? Be sure to explain your reasoning in either case.
+Yes it does, as this situation has the given that a person does not favor. Part one is the probability that this person is a member of party A given they do not favor. So this would apply to this person, so would B|not favor and C|not favor. 
+
+Problem 2
+
+a) Construct and print the two-way table of the department and the admit status, as well as a mosaic plot of the table. Do department and the admit status appear independent? Argue for your answer.
+```{r}
+data("UCBAdmissions") # import the data
+ucb = UCBAdmissions  # abbreviate "UCBAdmissions"
+print(dimnames(ucb))
+print(apply(ucb,c("Dept","Admit"),sum))
+mosaicplot(apply(ucb,c("Dept","Admit"),sum))
+```
+The department and the admit status do not seem to be independent. It seems, that depending on the department it may be easier to get into it. Starting with A and harder as we move to F. If they were independent the mosaic plot would have more equal rectangles.
+
+b) Construct and print the two-way table of department and gender, as well as a mosaic plot of the table. Do these variable appear independent? Justify your answer.
+
+```{r}
+print(apply(ucb,c("Dept","Gender"),sum))
+mosaicplot(apply(ucb,c("Dept","Gender"),sum))
+```
+These variables also do not seem independent. The size of the different rectangles vary drastically. Suggesting that some departments have a bias based on gender. In other words department may be dependent slightly upon your gender.
+
+c) Construct a two-way table of gender and admit status for the applicants to deparment F and create its mosaic plot. For the applicants to department F do gender and admit status appear to be independent? (This question could be rephrased to ask if admit status and gender conditionally independent given department F).
+```{r}
+ucb_f = ucb[,,"F"]
+print(apply(ucb_f,c("Gender","Admit"),sum))
+mosaicplot(apply(ucb_f,c("Gender","Admit"),sum))
+```
+From the mosaic plot it seems there is not a bias to either gender, and that they may in-fact be independent. All the rectangles are roughly the same size and there is not much difference in the counts of total people. It seems gender does not matter in department F.
+ 
+d) Create a 1-way table of the gender of Rejected students (without regard for department).
+
+```{r}
+ucb_r = ucb["Rejected",,]
+print(apply(ucb_r,("Gender"),sum))
+```
+
+Problem 3
+a) Create a pairs plot of the Fisher iris data, using a different plot character for each variety of iris.
+```{r}
+# We consider Fisher's famous iris data set and visualize data both as scatterplot and pairs plot
+# In classification we try predict the "label" or "class" of an observation from the variables we measure.
+
+
+data(iris);  	    # include the famous iris data
+n = nrow(iris);     # n is number of observations (will usually use "n" for this)
+type = rep(0,n);
+color = rep(0,n);
+
+type[iris[,5] == "setosa"] = "s";      # class is 5th column.  
+type[iris[,5] == "versicolor"] = "c";
+type[iris[,5] == "virginica"] = "v";
+
+color[iris[,5] == "setosa"] = 1;
+color[iris[,5] == "versicolor"] = 2;
+color[iris[,5] == "virginica"] = 3;
+
+
+# type is now a vector of "s" or "c" or "v" for 3 types
+
+
+#   here is a scatterplot
+
+plot(iris[,1],iris[,2],pch=type)  # scatterplot
+plot(iris[,3],iris[,2],pch=type,col=color)  # scatterplot
+
+
+# alternaltively could use
+# plot(iris[,"Sepal.Length"],iris[,"Sepal.Width"],pch=type)
+
+# here is pairs plot
+pairs(iris[,1:4],pch=type,col=color,cex=2)   # pairs plot using all four variables
+```
+
+b) Suppose we want to build a classifier that identifies the type of iris: setosa, versicolor, and virginica. Reasoning from your plot, which one of four variables would be best choice for constructing such a classifier. There may be several reasonable choices, but be sure to justify your answer.
+I would say we should classify based on petal length, as the pairs plot reveals that the most distinct separations in the data point appear when looking at the petal length vs something else. Easier classification if the seperations are notable.
+
+Problem 4 
+
+a) Simulate the experiment of choosing a die (according to stated model) and rolling the die 3 times giving results x1, x2, x3. Submit code for doing the simulation 1000 times. 
+```{r}
+#set.seed(333)
+
+dice_types = c("A", "B", "C")
+dice_probs = c(1/2, 1/4, 1/4)
+fair = rep(1/6, 6)
+biased_odd = c(2/9, 1/9, 2/9, 1/9, 2/9, 1/9)
+biased_mixed = c(1/9, 1/9, 1/9, 2/9, 2/9, 2/9)
+probs = list(fair,biased_odd,biased_mixed)
+n = 1000
+for (i in 1:n){
+  die = sample(dice_types, size = 1, prob = dice_probs) # select the die
+  res = sample(1:6, size = 3, replace = TRUE, prob = probs[[which(dice_types == die)]]) # set the probability of the correct die and roll it 3 times
+  x1 = res[1]
+  x2 = res[2]
+  x3 = res[3]
+  fin = c(x1,x2,x3)
+  print(fin)
+}
+```
+b) Suppose the outcome of the experiment gives x1 = 2, x2 = 4, x3 = 5. What are the probabilities of the three types of dice, given this outcome? In other words, what are P(A|x1, x2, x3), P(B|x1, x2, x3), P(C|x1, x2, x3)?
+```{r}
+dice_types = c("A", "B", "C")
+dice_probs = c(1/2, 1/4, 1/4)
+fair = rep(1/6, 6)
+biased_odd = c(2/9, 1/9, 2/9, 1/9, 2/9, 1/9)
+biased_mixed = c(1/9, 1/9, 1/9, 2/9, 2/9, 2/9)
+probs = list(fair, biased_odd, biased_mixed)
+x = c(2, 4, 5)
+
+P_x_given_A = prod(probs[[1]][x])  # probability of rolls given die A
+P_x_given_B = prod(probs[[2]][x])  # probability of rolls given die B
+P_x_given_C = prod(probs[[3]][x])  # probability of rolls given die C
+P_x = sum(dice_probs * c(P_x_given_A, P_x_given_B, P_x_given_C))  # probability of rolls regardless of die type
+P_A_given_x = P_x_given_A * dice_probs[1] / P_x  # probability of choosing die A given the rolls
+P_B_given_x = P_x_given_B * dice_probs[2] / P_x  # probability of choosing die B given the rolls
+P_C_given_x = P_x_given_C * dice_probs[3] / P_x  # probability of choosing die C given the rolls
+cat(P_A_given_x,P_B_given_x,P_C_given_x, 'P(A|x1, x2, x3), P(B|x1, x2, x3), P(C|x1, x2, x3), respectively')
+```
+c) Using the result from the previous part, how would a Bayes’ classifier classify this particular outcome of x1, x2, x3? 
+A good classifier will call this dice A, as it Bayes prob says it is most likely A.
+
+d) Simulate the experiment 1000 times and calculate the classification for each case using the Bayes’ method being sure to “remember” the true class. What is the proportion of times your classifier gives the true result? 
+```{r}
+dice_types = c("A", "B", "C")
+dice_probs = c(1/2, 1/4, 1/4)
+fair = rep(1/6, 6)
+biased_odd = c(2/9, 1/9, 2/9, 1/9, 2/9, 1/9)
+biased_mixed = c(1/9, 1/9, 1/9, 2/9, 2/9, 2/9)
+probs = list(fair, biased_odd, biased_mixed)
+n = 1000
+correct_counter = 0
+for (i in 1:n){
+  die = sample(dice_types, size = 1, prob = dice_probs) # select the die
+  true_class = die
+  res = sample(1:6, size = 3, replace = TRUE, prob = probs[[which(dice_types == die)]]) # set the probability of the correct die and roll it 3 times
+  x1 = res[1]
+  x2 = res[2]
+  x3 = res[3]
+  x = c(x1,x2,x3)
+
+  P_x_given_A = prod(probs[[1]][x])  # probability of rolls given die A
+  P_x_given_B = prod(probs[[2]][x])  # probability of rolls given die B
+  P_x_given_C = prod(probs[[3]][x])  # probability of rolls given die C
+  P_x = sum(dice_probs * c(P_x_given_A, P_x_given_B, P_x_given_C))  # probability of rolls regardless of die type
+  P_A_given_x = P_x_given_A * dice_probs[1] / P_x  # probability of choosing die A given the rolls
+  P_B_given_x = P_x_given_B * dice_probs[2] / P_x  # probability of choosing die B given the rolls
+  P_C_given_x = P_x_given_C * dice_probs[3] / P_x  # probability of choosing die C given the rolls
+  if (P_A_given_x > P_B_given_x & P_A_given_x > P_C_given_x) {
+    prediction = "A"
+  } else if (P_B_given_x > P_A_given_x & P_B_given_x > P_C_given_x) {
+    prediction = "B"
+  } else {
+    prediction = "C"
+  }
+  if (prediction == true_class) {
+    correct_counter = correct_counter + 1  # increment counter if prediction is correct
+  }
+   
+  
+  #cat(P_A_given_x,P_B_given_x,P_C_given_x, 'P(A|x1, x2, x3), P(B|x1, x2, x3), P(C|x1, x2, x3), respectively. And ', true_class, ' is the true class')
+}
+correct = correct_counter/n
+cat("Proportion of correct predictions:", correct)
+```
+
+Problem 5
+a) Show mosaic plots of each pair of variables, identifying which, if any, pairs of variables appear independent, justifying your answers.
+```{r}
+X = read.csv("three_related_vars.csv",header=TRUE)
+#colnames(X) = c('i','A', 'B', 'C')
+sum(X$A)
+mosaicplot(table(X$A,X$B))
+mosaicplot(table(X$B,X$C))
+mosaicplot(table(X$A,X$C))
+```
+None of these mosaic plots suggest anything about independence, as in all three, there are different and varying sized rectangles. If they were super similar we might have independence. 
+b) Similarly, consider conditioning on each of the variables, asking of the remaining two variables are conditionally independent. Are there any conditional independencies in the data. Justify your answers.
+```{r}
+marginal_A = margin.table(table(X$A))
+marginal_B = margin.table(table(X$B))
+marginal_C = margin.table(table(X$C))
+
+cond_AB = prop.table(table(X$A, X$B, X$C), margin = c(1, 2))
+cond_AC = prop.table(table(X$A, X$C, X$B), margin = c(1, 2))
+cond_BC = prop.table(table(X$B, X$C, X$A), margin = c(1, 2))
+mosaicplot(cond_AB, main = "A vs. B conditioned on C")
+mosaicplot(cond_AC, main = "A vs. C conditioned on B")
+mosaicplot(cond_BC, main = "B vs. C conditioned on A")
+```
+There are two cases of conditional independence. A vs. C on B and B vs. C on A are conditionally independent as their mosaic plots produce the nearly the same for both not condition on (the first) and conditioned on(the second).
+c)  Write an R program that could have been used to generate these data. Hint: All probabilities in the actual program used only a single digit after the decimal point.
+```{r}
+n = 10000
+A = rep(c(0,1), n/2)
+B = rep(c(0,1), n/4)
+C = ifelse(B == 1, sample(c(0,1), n/4, replace = TRUE, prob = c(0.1, 0.9)), sample(c(0,1), n/4, replace = TRUE, prob = c(0.9, 0.1))) # need to make C based on the others but it's late and my brain has stopped working. I am sorry. This really only generates some portion that may look like the data.
+X = data.frame(A = A, B = B, C = C)
+```

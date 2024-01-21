@@ -1,0 +1,238 @@
+---
+title: "Lab 9: The Gibbs Sampler"
+author: "Morgan Fissel 2000498470"
+date: "3/21/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 0. Structure of this Lab
+Section 1 explains the idea behind sampling and Gibbs Sampling for two random variables.
+
+Section 2 provides some `R` code for an example of Gibbs Sampling.
+
+Section 3 lays out your tasks. Section 3.0 will set up the example you will code for the lab. The problem is one with three random variables $X$, $U$, and $Y$ where $X$ and $U$ are marginally independent and $Y$ depents on both of them. We will assume that $Y$ is observed and that we need to determine the joint of $X$ and $U$ conditioned on $Y$.
+
+For turning in the lab you must make the following modifications to this file.
+
+1. Change the author field in the preamble above to your name followed by a space and then your IUID#  (all together in quotes so it is a string).
+
+2. Rename the file by putting your last name in the file name. For instance, I would call my solution file `lab8_womack.Rmd`
+
+3. DO NOT MODIFY Sections 0, 1, 2, and 3.0. Where there are tasks that require you to write an `R` chunk, do NOT delete the instructions, just place your chunk after the instructions for the task. Where there are questions that you need to answer, do NOT delete the questions, simply place your answer to a question in a new paragraph after the question is posed. If a task asks you to repeat procedures from previous tasks, you do not need to copy the intructions or questions from previous tasks, but you must repeat all of the procedures from the tasks completely and answer all of the questions in the new context. You can put all of your code for such a task into a single `R` chunk if doing so makes you happy.
+
+# 1. Sampling a Joint Distribution
+We are interested in the joint distribution of the random variables $X$ and $U$. We might be interested in aspects of $X$ marginally, like $E[X]$ or $P(X\leq x)$, or aspects of $U$ marginally, like $Var[U]$. We can also be interested in aspects of the joint on its own, like $Cor[X,Y]$. We might also be interested in conditional information, like $E[X|U=u]$ or $Var[U|X=x]$. All of these questions can be answered by computing sample averages of functions of $X$ and $U$ and using the Law of Large Numbers. We just need to be able to take as many samples as we want from the joint distribution of $X$ and $U$.
+
+## 1.1. Direct Sampling
+In order to do direct sampling of the joint, you need to be able to sample one marginal distribution and one conditional distribution. This is suggested by the product formula
+\[
+f(x,u) = f(x|u)f(u) = f(u|x)f(x)
+\]
+Using the first decomposition of the joint, we can sample $U$ first and then sample $X$ conditioned on that value of $U$. We could also do it the other way around using the second decomposition of the joint. Basic strategy, sample a bunch of $u$ values from $f(u)$ and then for each $u$ value sample and $x$ value from $f(x|u)$. The pairs $(x,u)$ are direct draws from the joint of $X$ and $U$.
+
+This is really useful if you have specified the conditional distribution for one variable and the marginal for the other. Sometimes you can do this, but often times you do not have this luxury. You just have a joint density and want to learn things about the random variables involved. If you can factor that joint density into a conditional times a marginal in some way, then you can take advantage of direct sampling.
+
+## 1.2. The Gibbs Sampler
+The Gibbs Sampler provides an (often) easier route to getting samples from a joint distribution. The idea is to try to mimic direct sampling. Start with a $u$ value and then sample an $x$ value. Then you sample a $u$ value. Then another $x$ value. And so on.
+
+The BIG difference is what distributions you sample from and how you update information. You begin at some $u_0$. It does not really matter what $u_0$ is, so long as it is supported by the marginal for $U$. Though, $u_0$ near the center of the distribution is a better starting point than far away from the center. Then you sample $x_1$ from $X|U=u_0$, so $x_1$ comes from the conditional using the value of $u$ that you have. Then you sample $u_1$ from $U|X=x_1$, so $u_1$ comes from the conditional with the value of $x$ that you have. Then you sample $x_2$ from $X|U=u_1$, the conditional but with the most recent value of $U$. Then $u_2$ from $U|X=x_2$. You keep doing this. Alternating the sampling from the two conditional distributions while conditioning on the most recent random draws.
+
+Eventually, the draws from this procedure look like they come from the joint for $X$ and $U$. This is really a statement about $(x_i,u_i)$ converging in distribution to draws from the joint. However, there are two great things that happen. The first is that oftentimes this convergence appears to happen really quickly and so the draws aree useful without waiting forever. The second is that some very smart people have figured out how to do Central Limit Theorems with the draws even though they are not independent and identically distributed. The correlation amongst the draws (usually) increases the variance in the asymptotic Normal distribution. This CLT is massively useful, but is a topic beyond the scope of this class. If you take Stat S-426, then you should learn more about these things.
+
+The Gibbs sampler is incredibly useful in situations where draws from either marginal are really difficult, but draws from the conditionals are really easy. And the Gibbs sampler can be easily extended to more than two random variables. All you have to do is have access to the full conditional distributions (one random variable conditioned on all of the others) and update the values you are conditioning on as you sample. Again, this is probably beyond the scope of this class, but we might do an example of it in the next two weeks as we talk about Bayesian data analysis. In addition to optimization that we have used a lot in this class, sampling is another major work-horse in modern statistics.
+
+# 2. Coding the Gibbs Sampler
+We have random variables $X$ and $U$ and their joint distribution $f(x,u)$. From the joint, we get $f(x|u)$ and $f(u|x)$, probably by kernel matching. Let's set up an example. $X$ and $U$ must be positive
+\[
+f(x,u) = 0.5\times u^{4-1}\exp(-(x+1)u)
+\]
+Using kernel matching, we can see that
+\[
+U|X \sim Gamma(4,\text{rate}=1+X)
+\]
+and
+\[
+X|U \sim Exponential(\text{rate}=U)
+\]
+If we wanted to do direct sampling, then we could try to factor this joint into a conditional times a marginal. 
+
+If we use the conditional for $U|X$ and the marginal for $X$, we get
+\[
+f(x) = \frac{f(x,u)}{f(u|x)} = \frac{0.5\times u^{4-1}\exp(-(x+1)u)}{\frac{1}{6}(1+x)^4u^{4-1}\exp(-(x+1)u)} = \frac{3}{(1+x)^4}
+\]
+This tells us that $X$ follows a Lomax distribution marginally where the shape is 3 and the scale is 1.
+
+If we use the conditional for $X|U$, then we get
+\[
+f(u) = \frac{f(x,u)}{f(x|u)} = \frac{0.5\times u^{4-1}\exp(-(x+1)u)}{u\exp(-xu)}
+= 0.5u^{3-1}\exp(-u)
+\]
+This tells us that $U$ follows a Gamma distribution marginally where the shape is 3 and the rate is 1. This specification, $U$ marginally Gamma and then $X|U$ conditionally Exponential with rate $U$ is exactly how we derived the Lomax distribution in the Shiny App for Compound Distributions via Kernel Matching (`comp_dist.R`).
+
+## 2.1. 
+Now that we have the distributions for $U|X$ and $X|U$, we just need a starting point and then to sample by alternating through the conditional distributions and updating values as we go. To keep our lives easy, we should first specify (1) the starting $u$ value, (2) the number of Gibbs Samples we want to take, and (3) objects to store these in. It will also be convenient to make objects to store the current values.
+
+```{r}
+#starting point - drawn from marginal because we could 
+u_0 = rgamma(1,3,1)
+
+#number of samples to take
+N_samp = 10000
+
+#output objects
+u_out = rep(NA,N_samp)
+x_out = rep(NA,N_samp)
+
+#current values - we do not need a starting x value because we will sample from X|U first
+u_curr = u_0
+x_curr = NA
+```
+
+We will now do the sampling using a `for` loop. The first part will update the values. The second part will store the new values into the output objects.
+```{r}
+for(i in 1:N_samp){
+  x_curr = rexp(1, rate = u_curr)
+  u_curr = rgamma(1, shape = 4, rate = 1+x_curr)
+  x_out[i] = x_curr
+  u_out[i] = u_curr
+}
+```
+
+We can now look at the output. A common thing to look at is called the trace plot, it is just the plot of the sampled values for each random variable.
+```{r}
+plot(x_out,type="l")
+plot(u_out,type="l")
+```
+
+we basically want these to look like happy little fuzzy flat lines that not go meandering too much. The `u_out` plot basically looks perfect. The `x_out` trace plot looks maybe a bit weird, but I think it is correct. The density is heavy tailed and does not decrease to 0 at the origin. Maybe a plot of $\log(x)$ would be useful to look at.
+```{r}
+plot(log(x_out),type="l")
+```
+
+I think this looks basically fine. There are some draws far away from the center, but the center is not snaking around a lot.
+
+Sometimes, when your starting point is bad for example, it takes the sampler a bit of time to find the right distribution. Becasue of this, people often throw away some first set of draws and do not look at them when analyzing the samples. This is called a "burn-in" period. I do not want to worry about that in this class and I will always give you a way to get a good starting point.
+
+## 2.2. Autocorrelation Plots
+In addition to checking that the trace plots do not meander around, we also want to see how much one draw of $u$ or $x$ depends on previous values. This is because the updating renders the draws to be non-independent. The correlations for different lags are obtained (and plotted) using the `acf` function.
+```{r}
+acf(x_out)
+acf(u_out)
+```
+
+These are extremely good autocorrelation plots. After a small lag, the correlation between draws basically disappears. If we were to just look at like every third draw (ignoring the ones in the middle), then the correlations would basically be indistinguishable from 0. This would be something called "thinning" and I do not want to worry about it in this class. It is only important if the autocorrelation is really persistent. This would mean we do not get a lot of information from each individual point and storing enough to get a lot of information could be burdensome and so we would just store a point after a number of draws.
+
+# 3. Tasks
+
+## 3.0 Task 0: The Model
+We are going to assume that $X$ is independent of $U$ marginally and that $X\sim Exponential(1)$ and $U\sim Gamma(2,1)$. However, there is a third random variable whose value we know, so we can condition on it. We will call the random variable $Y$ and assume that $Y|U,X\sim Exponential(\text{rate}=UX)$. The full joint for $(X,U,Y)$ is given by
+\[
+f(x,u,y) = f(x)f(u)f(y|x,u) = \exp(-x)\times u\exp(-u)\times ux\exp(-uxy)
+\]
+The full conditional densities for $x$ and $u$ are given up to proportion by
+\[
+f(x|u,y)\propto x\exp(-(1+uy)x)\quad\text{ and }\quad 
+f(u|x,y)\propto u^2\exp(-(1+xy)u)
+\]
+these mean that
+\[
+X|U,Y\sim Gamma(2,1+UY)\quad\text{ and }\quad 
+U|X,Y\sim Gamma(3,1+XY)
+\]
+
+## 3.1 Task 1: Gibbs Sampler
+Write code to perform a Gibbs sampler for $U$ and $X$ conditioned on $Y$. Make sure your code defines `y=1` and uses `y` as a variable in the full conditional distributions of $X$ and $U$. Start at `u_0=1`
+
+```{r}
+y = 1
+N = 10000 #sample size
+u0 = 1
+# x0 = 1 
+
+u_curr = u0
+x_curr = NA
+
+x_out = u_out = rep(NA,N)
+for(i in 1:N){
+  x_curr = rgamma(1,2,1+u_curr*y)
+  u_curr = rgamma(1,3,1+x_curr*y)
+  x_out[i] = x_curr
+  u_out[i] = u_curr
+}
+
+
+```
+
+## 3.2 Task 2: Sampler Plots
+Make trace and acf plots for $U$ and $X$. Comment on these plots. Does anything about these plots seem alarming to you?
+```{r}
+plot(x_out,type="l")
+plot(u_out,type="l")
+```
+These don't look great here, hard to tell if the center really moves up and down at all. (At least for the first graph the second is a bit easier.)
+
+
+Maybe try log.
+```{r}
+plot(log(x_out),type="l")
+plot(log(u_out),type="l")
+```
+These are much better, there are some draws away from the center, however the center does not seem to snake around a lot.
+
+
+acf plots
+```{r}
+acf(x_out)
+acf(u_out)
+```
+This is a very good acf the correlation almost disappears after 3 or 4 draws. Taking every third or fourth draw would be nearly indistinguishable from 0.
+
+## 3.3 Task 3: Estimation
+Use your samples to make a scatter plot of $U$ draws versus $X$ draws and estimate $Cor[X,U|Y=1]$ using your draws. Also, use your draws to make density plots for $U|Y=1$ and $X|Y=1$. Estimate $E[U|Y=1]$ and $E[X|Y=1]$ using your draws. The estimation is as easy as you think it should be, just use functions like `cor` or `density` or `mean` on your draws.
+```{r}
+plot(log(u_out),log(x_out))
+print('correlation X,U|Y=1')
+cor(u_out,x_out)
+plot(density(log(u_out)))
+plot(density(log(x_out)))
+print('means')
+mean(u_out)
+mean(x_out)
+```
+
+## 3.4 Task 4: Wrapping into a function
+Write a function that wraps up your Gibbs Sampling code. Make sure the function inputs the number of samples you want `N_samp`, the value for `y`, and the initial `u_0` value. Make sure the code outputs the `x` and `u` draws. Use this function to generate draws for `y=0.1` where `u_0=1`. Repeat Task 2 with these draws.
+```{r}
+gibbs_sample = function(N_samp=10000, y=0.1, u_0=1){
+  u_curr = u0
+  x_curr = NA
+
+  x_out = u_out = rep(NA,N)
+  for(i in 1:N){
+    x_curr = rgamma(1,2,1+u_curr*y)
+    u_curr = rgamma(1,3,1+x_curr*y)
+    x_out[i] = x_curr
+    u_out[i] = u_curr
+  }
+#'regular plots'
+plot(x_out,type="l")
+plot(u_out,type="l")
+#'log plots'
+plot(log(x_out),type='l')
+plot(log(u_out),type='l')
+#'acf plots'
+acf(x_out)
+acf(u_out)
+
+}
+
+gibbs_sample(y=0.1,u_0=1)
+```
+log plots look pretty good, some drawn away from center but not much. The center does not noticeably snake.
+The acf plots show practically no correlation on the second draw. Which for an acf plot is incredibly good. You could take every other draw quite easily with a correlation that is almost 0.
+
+

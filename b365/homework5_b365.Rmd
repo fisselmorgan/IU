@@ -1,0 +1,148 @@
+---
+title: "homework5_b365"
+author: "Morgan Fissel"
+date: "2023-03-22"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Problem 1
+- a) Reasoning from this plot, choose a variable and a split point for the variable so that the resulting two regions have one that contains only Setosa flowers, while the other mixes the other two classes.
+```{r}
+# We consider Fisher's famous iris data set and visualize data both as scatterplot and pairs plot
+# In classification we try predict the "label" or "class" of an observation from the variables we measure.
+
+
+data(iris);  	    # include the famous iris data
+n = nrow(iris);     # n is number of observations (will usually use "n" for this)
+type = rep(0,n);
+color = rep(0,n);
+
+type[iris[,5] == "setosa"] = "s";      # class is 5th column.  
+type[iris[,5] == "versicolor"] = "c";
+type[iris[,5] == "virginica"] = "v";
+
+color[iris[,5] == "setosa"] = 1;
+color[iris[,5] == "versicolor"] = 2;
+color[iris[,5] == "virginica"] = 3;
+
+
+# type is now a vector of "s" or "c" or "v" for 3 types
+
+
+#   here is a scatterplot
+
+#plot(iris[,1],iris[,2],pch=type)  # scatterplot
+plot(iris[,3],iris[,2],pch=type,col=color)  # scatterplot
+
+
+# alternaltively could use
+# plot(iris[,"Sepal.Length"],iris[,"Sepal.Width"],pch=type)
+
+# here is pairs plot
+
+
+#pairs(iris[,1:4],pch=type,col=color,cex=2)   # pairs plot using all four variables
+print('Split point at x = 2.5 petal length')
+```
+- b) For the “mixed” region resulting from the first part, choose a variable and split point that separates the Versicolor and Virginica flowers as well as possible.
+```{r}
+print('Split point at x = 5 petal length would seperate the Versicolor and Virginica flowers well.')
+```
+- c) Sketch the resulting three regions over the scatterplot of the two relevant variables, clearly labeling each region with the resulting class.
+```{r}
+plot(iris[,3],iris[,2],pch=type,col=color)
+abline(v = c(2.5, 5), lty = 2, col = c('blue', 'red'))
+text(2.2, 3.5, "setosa", col = "black")
+text(3.8, 3.5, "versicolor", col = "red")
+text(6, 3.5, "virginica", col = "green")
+```
+
+#Problem 2
+- On PDF separate
+
+#Problem 3 
+- a) Write a recursive function in R that takes as input the number of a node and returns the optimal risk
+associated with that node, with a split penalty of α = .03. When you run your function with input 1 (the
+root node) it should return the optimal risk for the entire tree.
+```{r}
+X = matrix(scan("tree_data.dat"),byrow=T,ncol = 3)
+n = X[1,1] + X[1,2]
+
+optimal_risk = function(node_num){
+  if (X[node_num,3]==1){
+    prune_cost = min(X[node_num,1],X[node_num,2])
+    prune_cost = prune_cost/n
+    return(prune_cost)
+    }else{
+      prune_cost = min(X[node_num,1],X[node_num,2])
+      prune_cost = prune_cost/n
+      split_cost = (.03 + optimal_risk(2*node_num) + optimal_risk(2*node_num+1))
+      return(min(split_cost,prune_cost))
+    }
+}
+optimal_risk(1)
+```
+
+- b) Let Tα=.03 denote the associated optimal tree, as computed in the previous problem. Construct this tree,
+explicitly giving the classifications associated with each terminal tree node.
+```{r}
+X[4,3] = 1
+Y = X[1:7,]
+print(Y)
+```
+Terminal nodes are: 4,5,6,7 with respective classifications, +,-,+,-
+
+- c) Increase alpha to a value of 0.08 to prune at node 3. And alpha of 0.02 should decrease enough to include more splits.
+
+
+#Problem 4
+- a) In the “rel error” column we get a value of 0. for the 23rd row. Explain what this number means.
+A relative error of 0 on the largest number of splits indicates that the model is fitting the training data too closely and is not generalizing well to new data. Likely overfitting.
+
+- b) In terms of error rate, how well do you think the tree associated with line 23 will perform on different
+data from the sample population.
+I could imagine there being a large error rate maybe somewhere above 50%, because it's overfitting too much to the original data it will likely fail on new data.
+
+- c) Consider the tree that makes no splits — i.e. the one that simply classifies according to the most likely class. How well will this tree classify new data from the same population.
+The root node error is 0.49161, which means if the tree simply classifies according to the most likely class, it would achieve an accuracy of around 50% on new data from the same population, this is not very good. The tree will not classify new data from the same population well.
+
+- d) Judging from the table, what appears to be your best choice of complexity parameter α? In what sense is your α value best? α = 0.00517799, because this is the last split where the xerror changes much. Therefore it is the best value to choose.
+
+#Problem 5
+- a) Write R code to fill in the matrix z to be as described in the problem.
+```{r}
+x = matrix(c(.7, .6, .5, .5, .5, .5, .7, .8, .7, .6, .7, .9, .8, .9 ),byrow=T,nrow=2);
+z = array(x,c(2,7,2));
+```
+- b) Using your z matrix create an R function that receives a vector of 7 test answers which are either wrong
+or right. For instance, if the answers are c(0,0,0,0,1,1,1), that would mean the student answered only the
+last three questions correctly. The function should return the probability that the student has understood
+the subject, using a Naive Bayes classifier.
+```{r}
+x = matrix(c(.7, .6, .5, .5, .5, .5, .7, .8, .7, .6, .7, .9, .8, .9 ),byrow=T,nrow=2);
+z = array(x,c(2,7,2));
+naive_bayes = function(answers){
+  prior_understand = 0.2
+  prior_not = 0.8 
+  
+  probs_correct = z[,,2] * answers 
+  probs_incorrect = z[,,1] * answers
+  
+  understand = prior_understand * probs_correct / (probs_correct + probs_incorrect)
+  not = prior_not * probs_incorrect / (probs_correct + probs_incorrect)
+  
+  #understand = prior_understand * probs_correct / (sum(answers)/7)
+  #not = prior_not * probs_incorrect / ((7-sum(answers))/7)
+  return(understand)
+  
+}
+answers = c(0,0,0,0,1,1,1)
+naive_bayes(answers)
+```
+

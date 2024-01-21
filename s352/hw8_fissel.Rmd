@@ -1,0 +1,135 @@
+---
+title: "hw8_fissel"
+author: "Morgan Fissel"
+date: "3/25/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Question 2
+a) full inde
+```{r}
+inde_fun = function(n=100, mu1=0,sd1=1,a=0,b=0,c=0,d=0,e=0){
+
+  x1 = rnorm(n, mean= mu1, sd = sd1)
+
+  mu2 = a + b*x1 # b = x2Rx1
+  sd2 = 1
+  x2 = rnorm(n, mean= mu2, sd = sd2) 
+
+  mu3 = c + d*x1 + e*x2 #d = x1Rx3, e = x2Rx3
+  sd3 = 1
+  x3 = rnorm(n, mean= mu3, sd = sd3)
+  
+  plot(x1~x2)
+  plot(x3~x2)
+  plot(x1~x3)
+
+}
+
+inde_fun(n=100)
+```
+The general lack of overlapping points and seemingly random spread throughout the graphs, suggest to me that this is indeed full independence.
+b) partial inde
+```{r}
+inde_fun = function(n=100, mu1=0,sd1=1,a=0,b=0,c=0,d=0,e=0){
+
+  x1 = rnorm(n, mean= mu1, sd = sd1)
+
+  mu2 = a + b*x1 # b = x2Rx1
+  sd2 = 1
+  x2 = rnorm(n, mean= mu2, sd = sd2) 
+
+  mu3 = c + d*x1 + e*x2 #d = x1Rx3, e = x2Rx3
+  sd3 = 1
+  x3 = rnorm(n, mean= mu3, sd = sd3)
+  
+  plot(x1~x2)
+  plot(x3~x2)
+  plot(x1~x3)
+
+}
+
+inde_fun(n=100,e=6)
+```
+(x1 and x2) and (x1 and x3) seem to be independent, with random spreads and little overlap or direction
+however, x2 and x3 seem to be strongly correlated, with a positive relationship (slope).
+Many overlapping points, more like a line.
+
+c) marginal inde
+```{r}
+inde_fun = function(n=100, mu1=0,sd1=1,a=0,b=0,c=0,d=0,e=0){
+
+  x1 = rnorm(n, mean= mu1, sd = sd1)
+
+  mu2 = a + b*x1 # b = x2Rx1
+  sd2 = 1
+  x2 = rnorm(n, mean= mu2, sd = sd2) 
+
+  mu3 = c + d*x1 + e*x2 #d = x1Rx3, e = x2Rx3
+  sd3 = 1
+  x3 = rnorm(n, mean= mu3, sd = sd3)
+  
+  plot(x1~x2)
+  plot(x3~x2)
+  plot(x1~x3)
+
+}
+
+inde_fun(n=100,b=-6)
+```
+The first graph relates x1 and x2 and shows a negative slope, lots of dots overlapping and forming (almost) a line. This is different from the other two graphs which seems to be randomly placed dots spread not really overlapping, so it seems x2Rx1, but 
+not(x1Rx3 or x2Rx3).
+
+d) conditional inde
+```{r}
+inde_fun = function(n=100, mu1=0,sd1=1,a=0,b=0,c=0,d=0,e=0){
+
+  x1 = rnorm(n, mean= mu1, sd = sd1)
+
+  mu2 = a + b*x1 # b = x2Rx1
+  sd2 = 1
+  x2 = rnorm(n, mean= mu2, sd = sd2) 
+
+  mu3 = c + d*x1 + e*x2 #d = x1Rx3, e = x2Rx3
+  sd3 = 1
+  x3 = rnorm(n, mean= mu3, sd = sd3)
+  
+  plot(x1~x2)
+  plot(x3~x2)
+  plot(x1~x3)
+
+}
+
+inde_fun(n=100,d=10,e=10)
+```
+The second and third graphs represent a positive potential relation between x1 and x3
+also between x2 and x3, but there does not seem to be a relation between x1 and x2.
+Looks like we have conditional independence of x1 and x2 given x3. 
+
+e) full dep
+```{r}
+inde_fun = function(n=100, mu1=0,sd1=1,a=0,b=0,c=0,d=0,e=0){
+
+  x1 = rnorm(n, mean= mu1, sd = sd1)
+
+  mu2 = a + b*x1 # b = x2Rx1
+  sd2 = 1
+  x2 = rnorm(n, mean= mu2, sd = sd2) 
+
+  mu3 = c + d*x1 + e*x2 #d = x1Rx3, e = x2Rx3
+  sd3 = 1
+  x3 = rnorm(n, mean= mu3, sd = sd3)
+  
+  plot(x1~x2)
+  plot(x3~x2)
+  plot(x1~x3)
+
+}
+
+inde_fun(n=100,b=4,d=6,e=8)
+```
+Full dependence!
+We can clearly tell all of the graphs, are positively sloped, and suggest a relation between each of the variables. The spread is tight and forms a line for all of our graphs here.
