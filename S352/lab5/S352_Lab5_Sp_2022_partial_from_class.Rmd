@@ -1,0 +1,666 @@
+---
+title: 'Lab 5: The Likelihood Ratio Test (LRT)'
+author: "Womack"
+date: "2/13/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 0. Structure of this Lab
+Section 1 explains the two guises of the Likelihood Ratio Test. The first is testing a scientific hypothesis for a theorized value of a parameter. The second is much more common and is about comparing a general model to a special case of that model. For us, the special case is given by making a restriction in the parameters of the general model. This restricted model is said to be "nested" in the general model. The difference in dimension between the nested model and the general model is usual the number of equality constraints that are made in the paramters.
+
+Section 2 provides some `R` code for computing the Likelihood Ratio Test in a few scenarios. One example with a hypothesized value of a parameter. One example comparing a nested model to a more complicated model where there is one simple restriction. One example where there are two parameter restrictions.
+
+Section 3 lays out your tasks. Section 3.0 will discuss the LRT in the context of testing the equality of means of two groups of normally distributed data. I will write a function that computes the MLE under the assumption that the two groups have the different means and different variances. Your tasks will be to write functions compute the MLE, the AIC, and to perform the LRT for the series of comparisons we can make for this situation.
+
+For turning in the lab you must make the following modifications to this file.
+
+1. Change the author field in the preamble above to your name followed by a space and then your IUID#  (all together in quotes so it is a string).
+
+2. Rename the file by putting your last name in the file name. For instance, I would call my solution file `lab5_womack.Rmd`
+
+3. DO NOT MODIFY Sections 0, 1, 2, and 3.0. Where there are tasks that require you to write an `R` chunk, do NOT delete the instructions, just place your chunk after the instructions for the task. Where there are questions that you need to answer, do NOT delete the questions, simply place your answer to a question in a new paragraph after the question is posed. If a task asks you to repeat procedures from previous tasks, you do not need to copy the intructions or questions from previous tasks, but you must repeat all of the procedures from the tasks completely and answer all of the questions in the new context. You can put all of your code for such a task into a single `R` chunk if doing so makes you happy.
+
+# 1. LRT Variants.
+
+## 1.1 Point Null Hypothesis
+The model for the data $y_1,\ldots,y_n$ is that they are iid draws from the same distribution with density or mass function $f$ that depends on some parameters. We are going to break the parameters into two different parameters. There is the parameter $\theta$ that we care about and the rest of the parameters that we will just call $\phi$. The null hypothesis $H_0$ is that $\theta=\theta_0$ where $\theta_0$ is some hypothesized value that we think has a meaning in the world. We will assume that this $\theta_0$ is in the interior of the parameter space. There are possible values of the paramater all around it in all directions. The alternative $H_A$ is that $\theta\neq\theta_0$. 
+
+Under both the null and the alternative we have to estimate the rest of the parameters $\phi$ but we only estimate $\theta$ under the alternative because we have assumed a specific value of it is correct under the null hypothesis.
+Under $H_0$ we get the MLE for $\phi$, let's call is $\widehat{\phi}_0$. Under the alternative we need to compute the MLE of $(\theta,\phi)$, let's call is $\left(\widehat{\theta}_A,\widehat{\phi}_A\right)$.
+
+The test statistic is
+\[
+\lambda(y_1,\ldots,y_n)
+=
+2\left[
+\sum_{i=1^n}\log\left(f\left(y_i;\widehat{\theta}_A,\widehat{\phi}_A\right)\right)
+-
+\sum_{i=1^n}\log\left(f\left(y_i;{\theta}_0,\widehat{\phi}_0\right)\right)
+\right]
+\]
+<b>Wilks' Theorem</b> tells us that (under some conditions) the test statistic converges to a $\chi^2_d$ where the degrees of freedom is $d=\dim (\theta)$.
+
+The AIC for the alternative $H_A$ is
+\[
+AIC(H_A) = -2
+\sum_{i=1^n}\log\left(f\left(y_i;\widehat{\theta}_A,\widehat{\phi}_A\right)\right)
++
+2\dim(\theta)
++
+2\dim(\phi)
+\]
+The AIC for the alternative $H_A$ is
+\[
+AIC(H_0) = -2
+\sum_{i=1^n}\log\left(f\left(y_i;{\theta}_0,\widehat{\phi}_0\right)\right)
++
+2\dim(\phi)
+\]
+Smaller AIC is better. If we take the AIC of the null minus that for the alternative, we get
+\[
+AIC(H_0) - AIC(H_A) = \lambda(y_1,\ldots,y_n) - 2\dim(\theta)
+\]
+And so this would suggest a test. If the decision rule is to reject $H_0$ if $AIC(H_0) > AIC(H_A)$, then the critical value for the asymptotic $\chi^2_d$ distribution would be $2d$.
+
+## 1.2 Nested Model
+I have two models for the data $M_0$ and $M_A$ and $M_0$ is a special case of $M_A$. The fact that $M_0$ is nested in $M_A$ is denoted by $M_0\subset M_A$. Under this setting, we can reparameterize the problem so that it is of the form from Section 1.1. One thing to keep in mind is that the nested model can't be a boundary case. We have already seen this issue arise. The Gaussian and Laplace models were both special cases of the Huber, Hyperbolic, and Logistic models. However, the Gaussian and Laplace were boundary cases. The Gaussian was obtained as two positive parameters went to $\infty$ together and the Laplace was obtained as they went to 0 together. We might be able to do something like the LRT, but the limiting distribution from Wilks' Theorem is wrong.
+
+Another example of this is the nested model situation is the Exponential, Gamma, and Weibull models. The Exponential is a special case of both the Gamma and Weibull models. However, the Gamma and Weibull are not special cases of one another in any way. However, we could still compare them using an LRT. Now, just for fun, the Gamma and Weibull are both nested in the Generalized Gamma distribution, whose density is given by
+\[
+f(y;d,k,s) = \frac{k}{\Gamma(d/k)s^{d}} y^{d-1} \exp\left(-\left(\frac{y}{s}\right)^k\right)
+\]
+The Gamma comes from taking $k=1$, which is an interior restriction. The Weibull comes from taking $d=k$. This is also an interior restriction, but might look a bit weird. We could change parameters by setting $\alpha=d/k$ and then the restriction is $\alpha=1$.
+
+
+
+# 2. Computing the LRT and AIC
+In order to get the AIC quickly and the degrees of freedom for the LRT, we will also make out MLE function spit out the dimension of the model (the number of parameters that need to be specified).
+
+## 2.1 Simple Null Hypothesis
+We will test whether the mean of a normal distribution is $0$. We need an MLE function and one made with a restriction.
+```{r}
+mle_norm = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    mu = theta[1]
+    sigma = theta[2]
+    sum(dnorm(y,mu,sigma,log=TRUE))
+  }
+  #log-likelihood for sigma=exp(theta[2])
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    mu = theta[1]
+    sigma = exp(theta[2])
+    sum(dnorm(y,mu,sigma,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[2] = exp(fit$par[2])
+  d = 2
+  AIC = -2*fit$value+2*d
+  names(fit$par) = c("mu","sigma") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,loglik=fit$value,dim=d,AIC=AIC))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,loglik=fit$value,dim=d,AIC=AIC,vcov=fit_vcov))
+  }
+}
+
+```
+
+Now, we need to make a version of the MLE function that works with our null hypothesis. Let's make the null hypothesis be that the mean is some fixed value $\mu_0$. Notice the restrictions in the loglik functions, the changes to the `vcov` output, and that I am also making it output the null hypothesis.
+```{r}
+mle_norm_mu_fixed = function(y,mu_0,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    mu = mu_0
+    sigma = theta[1]
+    sum(dnorm(y,mu,sigma,log=TRUE))
+  }
+  #log-likelihood for sigma=exp(theta[2])
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    mu = mu_0
+    sigma = exp(theta[1])
+    sum(dnorm(y,mu,sigma,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0),loglik_fun_trans,
+                    lower=min(y),upper=max(y),
+                    method="Brent",
+                    control=list(fnscale=-1)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = exp(fit$par[1])
+  d = 1 #hardcoding in dimension - not crazy about it
+  AIC = -2*fit$value+2*d
+  names(fit$par) = c("sigma") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,mu_0=mu_0,loglik=fit$value,dim=d,AIC=AIC))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = -1/fit_hess[1,1]
+    names(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,mu_0=mu_0,loglik=fit$value,dim=d,AIC=AIC,vcov=fit_vcov))
+  }
+}
+
+```
+
+Now to do the LRT, we just need a dataset, a hypothesis, and a significance level (I will call it TIER for Type I Error Rate).
+```{r}
+y = rnorm(100,0.5,2) #random data
+mu_0 = 0 #my null hypothesis
+TIER = 0.02 #AJW# TIER = 0.98
+
+fit_alt = mle_norm(y)
+fit_null = mle_norm_mu_fixed(y,mu_0)
+lambda = 2*(fit_alt$loglik - fit_null$loglik)
+d = fit_alt$dim - fit_null$dim
+cutoff = qchisq(TIER,d,lower.tail=FALSE) #AJW# qchisq(TIER,d)
+reject_null = (lambda>cutoff) #see if we reject
+p_value = pchisq(lambda,d,lower.tail = FALSE) #upper tail probability is the p-value
+print(c(lambda,d,cutoff,p_value))
+print(reject_null)
+print(fit_null$AIC-fit_alt$AIC)
+```
+
+I want to run that all again on some new data, but that is annoying cutting and pasting. Maybe better to wrap it up. Probably easiest to just have it report the p-value and the difference on AICs. Too much hassel (not really) to deal with TIER and cutoff.
+```{r}
+LRT_normal_mean = function(y,mu_0){
+  fit_alt = mle_norm(y)
+  fit_null = mle_norm_mu_fixed(y,mu_0)
+  lambda = 2*(fit_alt$loglik - fit_null$loglik)
+  d = fit_alt$dim - fit_null$dim
+  p_value = pchisq(lambda,d,lower.tail = FALSE) #upper tail probability is the p-value
+  AIC_diff = fit_null$AIC-fit_alt$AIC
+  return(list(fit_null=fit_null,fit_alt=fit_alt,lrt_stat=lambda,df=d,p_value=p_value,AIC_null_minus_alternative = AIC_diff))
+}
+
+#test it out
+LRT_normal_mean(y,0)
+LRT_normal_mean(y,0.5)
+LRT_normal_mean(y,-0.5)
+LRT_normal_mean(rnorm(1000,0.5,2),0)
+```
+
+## 2.2 Nested Models (d=1)
+We will look at the Exponential nested in the Gamma and not worry too much about wrapping it up, though maybe we would want to if we did this test a lot. Our MLE functions are
+```{r}
+mle_exp = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    sum(dexp(y,rate=theta,log=TRUE))
+  }
+  #using optimize to get MLE
+  #we use the regular log-likelihood function
+  fit = optimize(loglik_fun,c(1e-10,1e5),maximum=TRUE) #scoping, looks for y one environment up
+  d = 1
+  AIC = -2*fit$objective + 2*d
+  names(fit$maximum) = "theta" #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$maximum,loglik=fit$objective,dim=d,AIC=AIC))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$maximum,loglik_fun)[1,1] #1 by 1 matrix - accessing element to get a scalar\
+    #scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using division
+    fit_vcov = -1/fit_hess
+    names(fit_vcov) = names(fit$maximum)#NAMES ARE COPIED HERE
+    return(list(theta=fit$maximum,loglik=fit$objective,dim=d,AIC=AIC,vcov=fit_vcov))
+  }
+}
+
+mle_gamma_shape_rate = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    alpha = theta[1]
+    beta = theta[2]
+    sum(dgamma(y,shape=alpha,rate=beta,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    alpha = exp(theta[1])
+    beta = exp(theta[2])
+    sum(dgamma(y,shape=alpha,rate=beta,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = exp(fit$par[1])
+  fit$par[2] = exp(fit$par[2])
+  d = 2
+  AIC = -2*fit$value + 2*d
+  names(fit$par) = c("alpha","beta") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,loglik=fit$value,dim=d,AIC=AIC))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,loglik=fit$value,dim=d,AIC=AIC,vcov=fit_vcov))
+  }
+}
+```
+
+These are modificationds of two existing MlE functions from Lab 4. It took little work to extract what we need and add it to the functions. Let's do an LRT or two
+```{r}
+y = rexp(100,3) #random data, null true
+TIER = 0.02 #AJW# TIER = 0.98
+
+fit_alt = mle_gamma_shape_rate(y)
+fit_null = mle_exp(y)
+lambda = 2*(fit_alt$loglik - fit_null$loglik)
+d = fit_alt$dim - fit_null$dim
+cutoff = qchisq(TIER,d,lower.tail=FALSE) #AJW# qchisq(TIER,d)
+reject_null = (lambda>cutoff) #see if we reject
+p_value = pchisq(lambda,d,lower.tail = FALSE) #upper tail probability is the p-value
+print(c(lambda,d,cutoff,p_value))
+print(reject_null)
+print(fit_null$AIC-fit_alt$AIC)
+
+```
+
+```{r}
+y = rgamma(100,4,3) #random data, alternative true
+TIER = 0.02 #AJW# TIER = 0.98
+
+fit_alt = mle_gamma_shape_rate(y)
+fit_null = mle_exp(y)
+lambda = 2*(fit_alt$loglik - fit_null$loglik)
+d = fit_alt$dim - fit_null$dim
+cutoff = qchisq(TIER,d,lower.tail=FALSE) #AJW# qchisq(TIER,d)
+reject_null = (lambda>cutoff) #see if we reject
+p_value = pchisq(lambda,d,lower.tail = FALSE) #upper tail probability is the p-value
+print(c(lambda,d,cutoff,p_value))
+print(reject_null)
+print(fit_null$AIC-fit_alt$AIC)
+```
+
+## 2.3 Nested Models (d=2)
+We will look at comparing a Generalized-Gamma to an exponential. All we need is an MLE function for the Generalized Gamma. For that we also need a density function. I will also make a random number generator
+```{r}
+dgengamma = function(y,d,k,s,log=FALSE){
+  out = log(k) -lgamma(d/k) -d*log(s) +log(y)*(d-1) -(y/s)^k
+  if(log){out}else{exp(out)}
+}
+rgengamma = function(n,d,k,s,log=FALSE){
+  x = rgamma(n,d/k,1)
+  return(x^(1/k)*s)
+}
+mle_gengamma = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    d = theta[1]
+    k = theta[2]
+    s = theta[3]
+    sum(dgengamma(y,d,k,s,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    d = exp(theta[1])
+    k = exp(theta[2])
+    s = exp(theta[3])
+    sum(dgengamma(y,d,k,s,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0,0),loglik_fun_trans,control=list(fnscale=-1)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = exp(fit$par[1])
+  fit$par[2] = exp(fit$par[2])
+  fit$par[3] = exp(fit$par[3])
+  d = 3
+  AIC = -2*fit$value + 2*d
+  names(fit$par) = c("d","k","s") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,loglik=fit$value,dim=d,AIC=AIC))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,loglik=fit$value,dim=d,AIC=AIC,vcov=fit_vcov))
+  }
+}
+```
+
+Let's do the tests.
+```{r}
+y = rexp(100,3) #random data, null true
+TIER = 0.02 #AJW# TIER = 0.98
+
+fit_alt = mle_gengamma(y)
+fit_null = mle_exp(y)
+lambda = 2*(fit_alt$loglik - fit_null$loglik)
+d = fit_alt$dim - fit_null$dim
+cutoff = qchisq(TIER,d,lower.tail=FALSE) #AJW# qchisq(TIER,d)
+reject_null = (lambda>cutoff) #see if we reject
+p_value = pchisq(lambda,d,lower.tail = FALSE) #upper tail probability is the p-value
+print(c(lambda,d,cutoff,p_value))
+print(reject_null)
+print(fit_null$AIC-fit_alt$AIC)
+
+```
+
+```{r}
+y = rgengamma(100,4,2,1/3) #random data, alternative true
+TIER = 0.02 #AJW# TIER = 0.98
+
+fit_alt = mle_gengamma(y)
+fit_null = mle_exp(y)
+lambda = 2*(fit_alt$loglik - fit_null$loglik)
+d = fit_alt$dim - fit_null$dim
+cutoff = qchisq(TIER,d,lower.tail=FALSE) #AJW# qchisq(TIER,d)
+reject_null = (lambda>cutoff) #see if we reject
+p_value = pchisq(lambda,d,lower.tail = FALSE) #upper tail probability is the p-value
+print(c(lambda,d,cutoff,p_value))
+print(reject_null)
+print(fit_null$AIC-fit_alt$AIC)
+
+```
+# 3. Tasks
+We are going to compare the means of two groups of normally distributed data. The two goups will be $Y$s and $X$s and the parameters will be means and standard deviations. For the $Y$s, the parameters are $\mu_Y$ and $\sigma_Y$. For the $X$s, the parameters are $\mu_X$ and $\sigma_X$. There are four possible models given by whether we assume the means are the same, whether we assume the standard deviations are the same, whether we assume both are the same, or whether we assume they are both different.
+
+Before we get started, lets read in a couple of datasets to analyze later. 
+```{r}
+data("faithful")
+x = faithful$waiting[faithful$eruptions<=3]
+y = faithful$waiting[faithful$eruptions>3]
+```
+
+##  3.0 MLE Function for Comparing Normal Means
+We will give this function a suggestive name. First, we need a density function.
+```{r}
+d_norm_twogroups = function(y,x,mu_y,sigma_y,mu_x,sigma_x,log=FALSE){
+  out = c(dnorm(y,mu_y,sigma_y,TRUE), dnorm(x,mu_x,sigma_x,TRUE))
+  if(log){out}else{exp(out)}
+}
+```
+
+Now we can write the MLE function.
+```{r}
+mle_norm_twogroups_diff_mean_diff_sd = function(y,x,vcov=TRUE){
+  f = function(theta){
+    mu_y = theta[1]
+    sigma_y = theta[2]
+    mu_x = theta[3]
+    sigma_x = theta[4]
+    sum(d_norm_twogroups(y,x,mu_y,sigma_y,mu_x,sigma_x,TRUE))
+  }
+  f_trans = function(theta_trans){
+    mu_y = theta_trans[1]
+    sigma_y = exp(theta_trans[2])
+    mu_x = theta_trans[3]
+    sigma_x = exp(theta_trans[4])
+    sum(d_norm_twogroups(y,x,mu_y,sigma_y,mu_x,sigma_x,TRUE))
+  }
+  control = list(fnscale=-1,maxit=1000,reltol=1e-10)
+  opt_trans = optim(c(0,0,0,0),f_trans,method="BFGS",control=control,hessian=FALSE)
+  mu_y = opt_trans$par[1]
+  sigma_y = exp(opt_trans$par[2])
+  mu_x = opt_trans$par[3]
+  sigma_x = exp(opt_trans$par[4])
+  theta = c(mu_y=mu_y,sigma_y=sigma_y,mu_x=mu_x,sigma_x=sigma_x)
+  names(theta) = c("mu_y","sigma_y","mu_x","sigma_x")
+  loglik = opt_trans$value
+  d = 4
+  AIC = -2*loglik +2*d
+  if(!vcov){
+    return(list(theta=theta,loglik=loglik,dim=d,AIC=AIC))
+  }else{
+    hess = -optimHess(theta,f)
+    vcov = solve(hess)
+    rownames(vcov) = colnames(vcov) = names(theta)
+    return(list(theta=theta,loglik=loglik,dim=d,AIC=AIC,vcov=vcov))
+  }
+}
+
+```
+
+I will fit this model to the data.
+```{r}
+mle_norm_twogroups_diff_mean_diff_sd(y,x)
+```
+
+It looks like the "correct" model is different means, but same standard deviation.
+
+##  3.1 Task 1
+Perform the LRT for testing the null hypothesis $H_0:\mu_X=\mu_Y, \sigma_X=\sigma_Y$ versus the alternative $H_A:\mu_X\neq\mu_Y, \sigma_X\neq\sigma_Y$.
+
+```{r}
+mle_norm_twogroups_same_mean_same_sd = function(y,x){
+  f = function(theta){
+    mu_y = theta[1]
+    sigma_y = theta[2]
+    mu_x = mu_y#theta[3]
+    sigma_x = sigma_y#theta[4]
+    sum(d_norm_twogroups(y,x,mu_y,sigma_y,mu_x,sigma_x,TRUE))
+  }
+  f_trans = function(theta_trans){
+    mu_y = theta_trans[1]
+    sigma_y = exp(theta_trans[2])
+    mu_x = mu_y#theta_trans[3]
+    sigma_x = sigma_y#exp(theta_trans[4])
+    sum(d_norm_twogroups(y,x,mu_y,sigma_y,mu_x,sigma_x,TRUE))
+  }
+  control = list(fnscale=-1,maxit=1000,reltol=1e-10)
+  opt_trans = optim(c(0,0),f_trans,method="BFGS",control=control,hessian=FALSE)
+  mu_y = opt_trans$par[1]
+  sigma_y = exp(opt_trans$par[2])
+  mu_x = mu_y#opt_trans$par[3]
+  sigma_x = sigma_y#exp(opt_trans$par[4])
+  theta = c(mu_y=mu_y,sigma_y=sigma_y,mu_x=mu_x,sigma_x=sigma_x)
+  names(theta) = c("mu_y","sigma_y","mu_x","sigma_x")
+  loglik = opt_trans$value
+  d = 2
+  AIC = -2*loglik +2*d
+  return(list(theta=theta,loglik=loglik,dim=d,AIC=AIC))
+}
+
+```
+
+Now to perform the test
+```{r}
+LRT_task_3_1_fun = function(y,x,significance_level){
+  fit_alternative = mle_norm_twogroups_diff_mean_diff_sd(y,x)
+  fit_null = mle_norm_twogroups_same_mean_same_sd(y,x)
+  
+  test_stat = 2*(fit_alternative$loglik - fit_null$loglik)
+  
+  df = fit_alternative$dim - fit_null$dim
+  
+  p_value = pchisq(test_stat,df=df,lower.tail = FALSE)
+  
+  cutoff = qchisq(significance_level,df=df,lower.tail = FALSE)
+  
+  if(test_stat>cutoff){ #if(p_value<significance_level){
+    decision = "Reject H0"
+  }else{
+    decision = "Fail to reject H0"
+  }
+  AIC_null_minus_AIC_alternative = 
+    fit_null$AIC - fit_alternative$AIC #test_stat - 2*df
+  return(list(y = y, x = x,
+              significance_level = significance_level,
+              fit_alternative = fit_alternative,
+              fit_null = fit_null,
+              test_stat = test_stat,
+              df = df,
+              p_value = p_value,
+              cutoff = cutoff,
+              decision = decision,
+              AIC_null_minus_AIC_alternative = AIC_null_minus_AIC_alternative
+              ))
+}
+
+LRT_task_3_1_fun(y,x,0.01)
+```
+
+
+##  3.2 Task 2
+Perform the LRT for testing the null hypothesis $H_0:\mu_X=\mu_Y, \sigma_X=\sigma_Y$ versus the alternative $H_A:\mu_X\neq\mu_Y, \sigma_X=\sigma_Y$.
+```{r}
+mle_norm_twogroups_diff_mean_same_sd = function(y,x){
+  f = function(theta){
+    mu_y = theta[1]
+    sigma_y = theta[2]
+    mu_x = theta[3]
+    sigma_x = sigma_y#theta[4]
+    sum(d_norm_twogroups(y,x,mu_y,sigma_y,mu_x,sigma_x,TRUE))
+  }
+  f_trans = function(theta_trans){
+    mu_y = theta_trans[1]
+    sigma_y = exp(theta_trans[2])
+    mu_x = theta_trans[3]
+    sigma_x = sigma_y#exp(theta_trans[4])
+    sum(d_norm_twogroups(y,x,mu_y,sigma_y,mu_x,sigma_x,TRUE))
+  }
+  control = list(fnscale=-1,maxit=1000,reltol=1e-10)
+  opt_trans = optim(c(0,0),f_trans,method="BFGS",control=control,hessian=FALSE)
+  mu_y = opt_trans$par[1]
+  sigma_y = exp(opt_trans$par[2])
+  mu_x = opt_trans$par[3]
+  sigma_x = sigma_y#exp(opt_trans$par[4])
+  theta = c(mu_y=mu_y,sigma_y=sigma_y,mu_x=mu_x,sigma_x=sigma_x)
+  names(theta) = c("mu_y","sigma_y","mu_x","sigma_x")
+  loglik = opt_trans$value
+  d = 3
+  AIC = -2*loglik +2*d
+  return(list(theta=theta,loglik=loglik,dim=d,AIC=AIC))
+}
+
+```
+Now perform test:
+```{r}
+LRT_task_3_2_fun = function(y,x,significance_level){
+  fit_alternative = mle_norm_twogroups_diff_mean_same_sd(y,x)
+  fit_null = mle_norm_twogroups_same_mean_same_sd(y,x)
+  
+  test_stat = 2*(fit_alternative$loglik - fit_null$loglik)
+  
+  df = fit_alternative$dim - fit_null$dim
+  
+  p_value = pchisq(test_stat,df=df,lower.tail = FALSE)
+  
+  cutoff = qchisq(significance_level,df=df,lower.tail = FALSE)
+  
+  if(test_stat>cutoff){ #if(p_value<significance_level){
+    decision = "Reject H0"
+  }else{
+    decision = "Fail to reject H0"
+  }
+  AIC_null_minus_AIC_alternative = 
+    fit_null$AIC - fit_alternative$AIC #test_stat - 2*df
+  return(list(y = y, x = x,
+              significance_level = significance_level,
+              fit_alternative = fit_alternative,
+              fit_null = fit_null,
+              test_stat = test_stat,
+              df = df,
+              p_value = p_value,
+              cutoff = cutoff,
+              decision = decision,
+              AIC_null_minus_AIC_alternative = AIC_null_minus_AIC_alternative
+              ))
+}
+
+LRT_task_3_2_fun(y,x,0.01)
+```
+##  3.3 Task 3
+Perform the LRT for testing the null hypothesis $H_0:\mu_X\neq\mu_Y, \sigma_X=\sigma_Y$ versus the alternative $H_A:\mu_X\neq\mu_Y, \sigma_X\neq\sigma_Y$.
+```{r}
+LRT_task_3_3_fun = function(y,x,significance_level){
+  fit_alternative = mle_norm_twogroups_diff_mean_diff_sd(y,x)
+  fit_null = mle_norm_twogroups_diff_mean_same_sd(y,x)
+  
+  test_stat = 2*(fit_alternative$loglik - fit_null$loglik)
+  
+  df = fit_alternative$dim - fit_null$dim
+  
+  p_value = pchisq(test_stat,df=df,lower.tail = FALSE)
+  
+  cutoff = qchisq(significance_level,df=df,lower.tail = FALSE)
+  
+  if(test_stat>cutoff){ #if(p_value<significance_level){
+    decision = "Reject H0"
+  }else{
+    decision = "Fail to reject H0"
+  }
+  AIC_null_minus_AIC_alternative = 
+    fit_null$AIC - fit_alternative$AIC #test_stat - 2*df
+  return(list(y = y, x = x,
+              significance_level = significance_level,
+              fit_alternative = fit_alternative,
+              fit_null = fit_null,
+              test_stat = test_stat,
+              df = df,
+              p_value = p_value,
+              cutoff = cutoff,
+              decision = decision,
+              AIC_null_minus_AIC_alternative = AIC_null_minus_AIC_alternative
+              ))
+}
+
+LRT_task_3_3_fun(y,x,0.01)
+```
+##  3.4 Task 4
+The two models $M_1$ that assumes $\mu_X\neq\mu_Y$ and $\sigma_X=\sigma_Y$ and $M_2$ that assumes $\mu_X=\mu_Y$ and $\sigma_X\neq\sigma_Y$ cannot be compared using a LRT because one is not a special case of the other. Compare these models using AICs. Smaller AIC is better.
+```{r}
+LRT_task_3_3_fun = function(y,x,significance_level){
+  fit_alternative = mle_norm_twogroups_diff_mean_diff_sd(y,x)
+  fit_null = mle_norm_twogroups_diff_mean_same_sd(y,x)
+  
+  test_stat = 2*(fit_alternative$loglik - fit_null$loglik)
+  
+  df = fit_alternative$dim - fit_null$dim
+  
+  p_value = pchisq(test_stat,df=df,lower.tail = FALSE)
+  
+  cutoff = qchisq(significance_level,df=df,lower.tail = FALSE)
+  
+  if(test_stat>cutoff){ #if(p_value<significance_level){
+    decision = "Reject H0"
+  }else{
+    decision = "Fail to reject H0"
+  }
+  AIC_null_minus_AIC_alternative = 
+    fit_null$AIC - fit_alternative$AIC #test_stat - 2*df
+  return(list(y = y, x = x,
+              significance_level = significance_level,
+              fit_alternative = fit_alternative,
+              fit_null = fit_null,
+              test_stat = test_stat,
+              df = df,
+              p_value = p_value,
+              cutoff = cutoff,
+              decision = decision,
+              AIC_null_minus_AIC_alternative = AIC_null_minus_AIC_alternative
+              ))
+}
+
+LRT_task_3_3_fun(y,x,0.01)
+```

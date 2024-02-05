@@ -1,0 +1,167 @@
+---
+title: "hw3_fissel"
+author: "Morgan Fissel"
+date: "2/9/2022"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+# load melanoma tumor thickness dataset
+library(boot); data(melanoma); y = log(melanoma$thickness)
+```
+
+Helper Functions
+```{r}
+##AJW## just moved this up so it is in memory before we use dlogisIII
+dlogisIII=function(x,location=0,scale=1,shape=1,log=FALSE){
+  x = (x-location)/scale
+  log_y = ifelse(x<0,x-log(1+exp(x)),-log(1+exp(-x)))
+  log_1my = ifelse(x<0,-log(1+exp(x)),-x-log(1+exp(-x)))
+  out = -log(scale)-lbeta(shape,shape) + (shape)*(log_y+log_1my)
+  if(log){return(out)}else{return(exp(out))}
+}
+plogisIII=function(q,location=0,scale=1,shape=1,lower.tail=TRUE,log.p=FALSE){
+  q = (q-location)/scale
+  Q = ifelse(q<0,exp(q)/(1+exp(q)),1/(1+exp(-q)))
+  return(pbeta(Q,shape,shape,0,lower.tail,log.p))
+}
+qlogisIII=function(p,location=0,scale=1,shape=1,lower.tail=TRUE,log.p=FALSE){
+  Q = qbeta(p,shape,shape,0,lower.tail,log.p)
+  q = ifelse(Q<0.5,log(Q)-log(1-Q),-log(1/Q-1))
+  return(q*scale+location)
+}
+rlogisIII=function(n,location=0,scale=1,shape=1){
+  b = rbeta(n,shape,shape,0)
+  x = ifelse(b<0.5,log(b)-log(1-b),-log(1/b-1))
+  return(x*scale+location)
+}
+
+```
+a) Write MLE Function like from likelihoods.pdf. 
+Will use to Compute MLE for Type III Logisitic model. 
+Note: scaling delta and shape alpha are positive.
+```{r}
+mle_logisIII = function(y){
+  #function to optimize using optim
+  f = function(theta){
+    mu = theta[1]
+    delta = exp(theta[2]) #note the transformation
+    ##AJW## there are three parameters
+    alpha = exp(theta[3])
+    #sum(dlogisIII(y,location=mu,scale=delta,log=TRUE))
+    sum(dlogisIII(y,location=mu,scale=delta,shape=alpha,log=TRUE))
+  }
+  #using optim - starting at a guess of mu=0 and log(delta)=0 -- par=c(0,0)
+  ##AJW## 3 dimensional optimization, need 3 dimensional starting point
+  #opt_out = optim(par=c(0,0),f,control=list(fnscale=-1,maxit=1000,reltol=1e-8))
+  opt_out = optim(par=c(0,0,0),f,control=list(fnscale=-1,maxit=1000,reltol=1e-8))
+  par = opt_out$par
+  par[2] = exp(par[2]) #transforming to delta
+  ##AJW## geting alpha out and adding name to names
+  par[3] = exp(par[3])
+  #names(par) = c("mu","delta") #NAMES ARE GOOD
+  names(par) = c("mu","delta","alpha") #NAMES ARE GOOD
+  out = list(theta=par,loglik=opt_out$value)
+  return(out)
+}
+
+##AJW## need to make a funciton for logistic type III,
+## it should use the helper functions below and be a modification of this function
+## to do the 3 parameter optimization
+```
+
+b) Compute the mle_logis(y=log(melanoma$thickness))
+Plot density of the model using dlogisIII with KDE of y
+Does the model appear to capture the data well?
+```{r}
+mle_logisIII(y)
+fit_logisIII_y = mle_logisIII(y)
+
+plot(density(y),xlim=c(-3,4),ylim=c(0,0.45))
+
+##AJW## some changes here
+##I am going to comment your line and do what the line would be for the for
+##to the logistic distribution (shape parameter alpha=1)
+#lines(dlogisIII(y,fit_logis_y[["theta"]][["mu"]],fit_logis_y[["theta"]][["delta"]],1))
+x_val = seq(-3,4,length.out=1000)
+##AJW## there are 3 parameters
+#dens_logisIII_vals = dlogisIII(x_val,fit_logisIII_y[["theta"]][["mu"]],fit_logisIII_y[["theta"]][["delta"]])
+dens_logisIII_vals = dlogisIII(x_val,fit_logisIII_y[["theta"]]["mu"],fit_logisIII_y[["theta"]]["delta"],fit_logisIII_y[["theta"]]["alpha"])
+lines(dens_logisIII_vals~x_val,col="blue",lty=2)
+legend("bottom",legend=c("KDE","Fitted"),col=c("black","blue"),lty=c(1,2),bty="n")
+
+
+```
+The Model does a decent job at capturing the data. 
+The middle of the fitted graph is a bit taller than the KDE, however it smoothes the curves of the KDE quite nicely. 
+
+c) Do a goodness of fit test for the fitted Type III logisitic distribution using ks.test. 
+```{r}
+##AJW##
+##because your fit from above is the the logistic and not logistic type 3, 
+##I am going to rewrite this line to demonstrate comparison to logistic
+##your setting alpha=1 is doing that, but I think it will be cleaner to see this again
+##ks.test(y, dlogisIII, location = fit_logis_y[["theta"]][["mu"]], 
+##        scale = fit_logis_y[["theta"]][["delta"]], shape = 1)
+## comparison is to a probability function and not a density function
+## so plogis instead of dlogis
+##AJW## logistic III, so need all 3 parameters
+#ks.test(y, plogisIII, location = fit_logisIII_y[["theta"]][["mu"]], 
+#        scale = fit_logisIII_y[["theta"]][["delta"]])
+ks.test(y, plogisIII, location = fit_logisIII_y[["theta"]]["mu"], 
+        scale = fit_logisIII_y[["theta"]]["delta"],
+        shape = fit_logisIII_y[["theta"]]["alpha"])
+```
+d) Perform tasks b) and c) using the mle_logis function that I provided and the built-in dlogis
+and plogis functions.
+```{r}
+mle_logis = function(y){
+  #function to optimize using optim
+  f = function(theta){
+    mu = theta[1]
+    delta = exp(theta[2]) #note the transformation
+    sum(dlogis(y,location=mu,scale=delta,log=TRUE))
+  }
+  #using optim - starting at a guess of mu=0 and log(delta)=0 -- par=c(0,0)
+  opt_out = optim(par=c(0,0),f,control=list(fnscale=-1,maxit=1000,reltol=1e-8))
+  par = opt_out$par
+  par[2] = exp(par[2]) #transforming to delta
+  names(par) = c("mu","delta") #NAMES ARE GOOD
+  out = list(theta=par,loglik=opt_out$value)
+  return(out)
+}
+mle_logis(y)
+fit_logis_y = mle_logis(y)
+
+dens_y = density(y)
+x_seq = dens_y$x #seq(lb, ub,length.out=whatever)
+fitted_dens_y = dlogis(x_seq,fit_logis_y$theta['mu'],fit_logis_y$theta['delta'])
+
+plot(density(y),main='model fit plot',xlab='y',ylab='desity',ylim=c(0,max(c(dens_y$y,fitted_dens_y))),xlim=range(x_seq))
+lines(fitted_dens_y~x_seq,lty=1,col='purple')
+legend("bottom",legend=c("KDE","Fitted"),col=c("black","purple"),lty=(1),bty="n")
+
+###
+
+ks.test(y, plogis, location = fit_logis_y[["theta"]][["mu"]], 
+        scale = fit_logis_y[["theta"]][["delta"]])
+
+```
+I'd say the model does a decent job handling the data.
+The center is taller, and has much smoother curve.
+
+e) Compare the log-likelihood evaluated at the MLE for the Logistic and Type III logistic models.
+Which model has higher log-likelihood? Which model is better at capturing the data? Do you
+think it was worth adding the shape parameter α to the Logistic distribution for modeling
+this dataset? 
+The Logisitic had a slightly higher loglikelihood at the MLE than the Type III.
+I would say the Type III model is better at capturing the data. It more accurately mimics the shape of the KDE.
+This is likely because of the alpha parameter, allowing us to better capture the dataset. 
+Absolutely worth adding the alpha, I think.

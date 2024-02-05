@@ -1,0 +1,281 @@
+---
+title: "hw10_fissel"
+author: "Morgan Fissel 2000498470"
+date: "4/8/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Question 2
+a)
+```{r}
+library(boot)
+data(nodal)
+y = nodal$stage
+n = length(y)
+alpha0 = 1
+beta0 = 1
+sn = sum(y) # successes
+sn
+fn = n - sn # fails 
+fn
+alpha_n = sn + alpha0 
+beta_n = fn + beta0
+
+N_samps = 10000
+draws = rbeta(N_samps,alpha_n,beta_n)
+
+plot(density(draws))
+mean(draws)
+quantile(draws,c(0.025, 0.975))
+
+y_new = rbinom(N_samps,1,draws)
+```
+The model's predictions look good to me. Given there are 27 successes and 26 failures, and the probability should be about .50, we can conclude that having nearly equal successes and failures likely means we have about 50% probability of success.
+
+b)
+```{r}
+library(boot)
+data(fir)
+y = fir$count
+n = length(y)
+sn = sum(y)
+mean(y)
+alpha0 = 1 
+beta0 = 1
+alpha_n = sn + alpha0
+beta_n = n + beta0
+
+N_samps = 10000 
+draws = rgamma(N_samps,alpha_n,beta_n)
+
+plot(density(draws))
+mean(draws)
+quantile(draws,c(0.025,0.975))
+
+y_new = rpois(N_samps, draws)
+```
+Once again, our model is doing a decent job, the mean is about 2.118352, and our data's is about 2.14. Most of our numbers are going to be from like 1.7 to about 2.5. Which is exactly what our model shows.
+
+c)
+```{r}
+library(boot)
+data(poisons)
+y = poisons$time
+shape = 4.31 #use fixed shape
+sn = sum(y)
+mean(y)
+alpha0 = 1
+beta0 = 1
+n = length(y)
+alpha_n = n*shape + alpha0
+beta_n = sn + beta0
+N_samps = 10000
+
+draws = rgamma(N_samps,alpha_n,beta_n)
+plot(density(draws))
+mean(draws)
+
+quantile(draws,c(0.025,0.975))
+y_new = rgamma(N_samps,shape,draws)
+plot(density(y_new))
+```
+This model does not seem to represent our data well, it has a different mean entirely, and the shapes of the densities aren't very similar.
+
+d)
+```{r}
+library(boot)
+data(acme)
+y=acme$acme
+s_n = sum(y)
+un = sum(y^2)
+n = length(y)
+N_samps = 10000
+a_curr=0
+b_curr=1
+delta0=1
+zeta0=1
+mu_curr=0
+
+## simple Inverting of draws from appropriate gamma distribution
+## parameterized using shape = delta and scale = zeta
+rinvgamma = function(n,delta,zeta){
+  shape = delta0
+  rate = zeta0
+  1/rgamma(n,shape,rate)
+}
+
+#making containers for output
+mu_out = a_out = b_out = rep(NA,N_samps)
+
+#Looping for the sampler
+for(i in 1:N_samps){
+  #updating
+  b_curr = rinvgamma(1,0.5+10,0.5*(mu_curr-a_curr)^2+1)
+  a_curr = rnorm(1,(mu_curr/b_curr+0)/(1/b_curr+1),sqrt(1/(1/b_curr+1)))
+  mu_curr = rnorm(1,(s_n+a_curr/b_curr)/(n+1/b_curr),sqrt(1/(n+1/b_curr)))
+  #storing
+  mu_out[i] = mu_curr
+  a_out[i] = a_curr
+  b_out[i] = b_curr
+}
+
+#looking at the output
+plot(mu_out,pch='.')
+acf(mu_out)
+plot(a_out,pch='.')
+acf(a_out)
+plot(b_out,pch='.')
+acf(b_out)
+
+#Drawing inference
+#Density plots
+plot(density(mu_out))
+plot(density(a_out))
+plot(density(b_out,from=0))
+#posterior means
+mean(mu_out)
+mean(a_out)
+mean(b_out)
+#intervals
+quantile(mu_out,c(0.025,0.975))
+quantile(a_out,c(0.025,0.975))
+quantile(b_out,c(0.025,0.975))
+#correlation of parameters
+cor(mu_out,a_out)
+cor(mu_out,b_out)
+cor(a_out,b_out)
+
+
+#predictions
+y_pred = rnorm(N_samps,mu_out,1)
+#comparison
+plot(density(y))
+lines(density(y_pred),col="blue",lty=2)
+legend("topright",legend=c("KDE-Data","KDE-Predictions"),col=c("black","blue"),lty=c(1,2))
+
+
+##
+## gibbs example with three random variables
+## the model for the data is y_i|mu~N(mu,1)
+## the prior for mu|a,b is mu~N(a,b)
+## a and b are given a prior 
+## and assumed independent in the prior
+## the prior for a is a~N(0,1)
+## the prior for b is b~InverseGamma(10,1)
+## The full conditional for mu is N((s_n+a/b)/(n+1/b),1/(n+1/b))
+## The full conditional for a is N((mu/b+0)/(1/b+1),1/(1/b+1))
+## The full conditional for b is InverseGamma(0.5+10,0.5*(mu-a)^2+1)
+```
+
+The predictions don't match the data very well. The model is likely insufficient for the data. The trace and ACF plots are generally not great, but could possibly work. I may be doing something wrong here. a_out should be our nu_out, or v_out (shape).
+
+e)
+```{r, eval=FALSE}
+library(palmerpenguins)
+data("penguins")
+y = penguins$flipper_length_mm
+x = penguins$body_mass_g
+ind = !(is.na(y)|is.na(x))
+y = y[ind]
+x = x[ind]
+
+n = length(y)
+s_n = sum(y)
+u_n = sum(y^2)
+t_n = sum(x)
+r_n = sum(x*y)
+w_n = sum(x^2)
+
+a_0=0
+b_0=1e6
+c_0=0
+d_0=1
+zeta_0 = 1
+delta_0 = 1
+alpha = 136
+beta = 0.02
+
+N_samps = 10000
+alpha_curr = rnorm(n,a_0,b_0)
+beta_curr = rnorm(c_0,d_0)
+nu_curr = NA
+
+#making containers for output
+alpha_out = beta_out = nu_out = rep(NA,N_samps)
+
+#Looping for the sampler
+for(i in 1:N_samps){
+  #updating
+  #the a,b,c,d,delta,zeta are all defined in terms of the statistics and the current values
+  #in their definitions in q1e, where you see and alpha, beta, or nu 
+  #you should use alpha_curr, beta_curr, or nu_curr
+  
+  #changing order to update nu first because you only were given alpha and beta starting values
+  delta_curr = n/2 + delta_0
+  zeta_curr = ((n*alpha^2 + w_n*beta^2 + u_n - 2*alpha*s_n - 2*beta*r_n + 2*alpha*beta*t_n)/2)+zeta_0
+  nu_curr = rinvgamma(1, delta_curr, zeta_curr)
+
+  b_curr = 1/(n/nu_curr+1/b_0)
+  a_curr = ((s_n-beta*t_n)/nu_curr)/(n/(nu_curr+1)/b_0)
+  alpha_curr = rnorm(1,a_curr,sqrt(b_curr)) 
+  
+  c_curr = (r_n - alpha*t_n)/nu_curr+c_0/d_0 / w_n/nu_curr+1/d_0
+  d_curr = 1/w_n/nu_curr+1/d_0
+  beta_curr = rnorm(1,c_curr,sqrt(d_curr)) 
+  
+      #storing
+  nu_out[i] = nu_curr
+  alpha_out[i] = alpha_curr
+  beta_out[i] = beta_curr
+}
+
+plot(nu_out,pch='.')
+acf(nu_out)
+plot(alpha_out,pch='.')
+acf(alpha_out)
+plot(beta_out,pch='.')
+acf(beta_out)
+
+#Density plots
+plot(density(nu_out))
+plot(density(alpha_out))
+plot(density(beta_out))
+#posterior means
+draws_nu_mean = mean(nu_out)
+draws_alpha_mean = mean(alpha_out)
+draws_beta_mean = mean(beta_out)
+#intervals
+quantile(nu_out,c(0.025,0.975))
+quantile(alpha_out,c(0.025,0.975))
+quantile(beta_out,c(0.025,0.975))
+#correlation of parameters
+cor(nu_out,alpha_out)
+cor(nu_out,beta_out)
+cor(alpha_out,beta_out)
+
+#predictions
+y_pred = rnorm(N_samps,draws_alpha_mean+x*draws_beta_mean,sqrt(draws_nu_mean))
+#comparison
+plot(density(y))
+lines(density(y_pred),col="blue",lty=2)
+legend("topright",legend=c("KDE-Data","KDE-Predictions"),col=c("black","blue"),lty=c(1,2))
+```
+All of the trace plots are kind of bad. Our acf's aren't great either. Maybe I've done something incorrect, or this is our first sign that the model is not good. 
+I am really doing something here, feels very wrong. 
+
+```{r,eval=FALSE}
+y_pred = rnorm(n,draws_alpha_mean+x*draws_beta_mean,sqrt(draws_nu_mean))
+plot(y_pred~x)
+points(y~x)
+
+x_new = 3800
+y_pred = rnorm(N_samps,alpha_out+x_new*beta_out,sqrt(nu_out)) 
+plot(density(y_pred))
+lines(density(y[x>=3700 & x<=3900]),col="blue",lty=2)
+```
+Really not sure if this is doing a good job, I may have gotten a little lost in the weeds on this problem
+

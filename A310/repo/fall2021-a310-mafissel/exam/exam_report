@@ -1,0 +1,21 @@
+Question 1 BST
+Follows the visualization 'https://www.cs.usfca.edu/~galles/visualization/BST.html' exactly
+Shows and tells what is happening each step 
+100/100
+
+Question 2 AVL Tree
+Shows and tells each step
+rotating consistently 
+follows the visualization until deleting 3
+remains correct, favors left.
+100/100
+
+Question 3 Quick Sort
+forgot the closing parenthesis after x <= l[0]]) <---
+runs perfectly when adding the parenthesis
+95/100
+
+Question 4 Permuation 
+for i in range(step,len(word)): <---- forgot the colon 
+when added runs perfectly
+95/100  

@@ -1,0 +1,427 @@
+---
+title: "hw12_fissel"
+author: "Morgan Fissel"
+date: "4/25/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Givens:\n
+CV_Kfold and SPLIT_Kfold \n
+```{r}
+SPLIT_Kfold = function(n,K){
+  ind = c(1:n)
+  out = list()
+  for(i in 1:(K-1)){
+    size = length(ind)*1/(K-i+1)
+    split = sort(sample(ind,size))
+    ind = ind[ !( ind %in% split ) ]
+    out[[i]] = split
+  }
+  out[[K]] = ind
+  return(out)
+}
+
+CV_Kfold = function(data,K_SPLIT,FIT,CVM,...){
+  if("matrix"%in%class(data) || "data.frame"%in%class(data)){
+    n = dim(data)[1] #nrow(data)
+  }else{#assume data is a vector
+    n = length(data)
+  }
+  if(class(K_SPLIT)=="list"){
+    split_ind = K_SPLIT
+    K = length(K_SPLIT)
+  }else{
+    split_ind = SPLIT_Kfold(n,K_SPLIT)
+    K = K_SPLIT
+  }
+  cvm = rep(NA,K)
+  ind = c(1:n)
+  for(i in 1:K){
+    train_ind = ind[ -split_ind[[i]] ]
+    fit = FIT(data,train_ind,...)
+    cvm[i] = CVM(fit=fit,data,train_ind,...)
+  }
+  return(list(cvm = cvm, avg_cvm = mean(cvm), split_ind = split_ind))
+}
+```
+Question 1 \n
+CV for shape parameter of a Gamma Distribution \n
+```{r}
+FIT_gamma = function(x,train_ind,shape){
+  data_train = x[train_ind]
+  rate = shape/mean(data_train)
+  return(rate)
+}
+
+CVM_gamma = function(fit_output,x,train_ind,shape){
+  data_test = x[-train_ind]
+  rate = fit_output
+  return(-mean(dgamma(data_test,shape,rate,log=TRUE)))
+}
+```
+```{r}
+# data loading
+library(boot); data(poisons); y = poisons$time
+alpha = shape = seq(2,7,length.out=501)
+cvm_avg_out = rep(NA,length(shape))
+# get the splits
+K = 5
+n = length(y)
+splits = SPLIT_Kfold(n,K)
+
+for(i in 1:length(shape)){
+  cvm_avg_out[i] = CV_Kfold(y,splits,FIT_gamma,CVM_gamma,shape[i])$avg_cvm
+}
+
+plot(cvm_avg_out~shape,type="l")
+shape[which.min(cvm_avg_out)]
+```
+Question 2\n
+CV for shape parameter of a Weibull Distribution \n
+```{r}
+FIT_weibull = function(x,train_ind,alpha){
+  data_train = x[train_ind]
+  scale = (mean(data_train^alpha))^(1/alpha)
+  return(scale)
+}
+
+CVM_weibull = function(fit_output,x,train_ind,shape){
+  data_test = x[-train_ind]
+  scale = fit_output
+  return(-mean(dweibull(data_test,shape,scale,log=TRUE)))
+}
+```
+```{r}
+# data loading 
+library(boot); data(poisons); y = poisons$time
+alpha = seq(1,4,length.out=301)
+cvm_avg_out = rep(NA,length(alpha))
+# get the splits
+K = 5
+n = length(y)
+splits = SPLIT_Kfold(n,K)
+
+for(i in 1:length(alpha)){
+  cvm_avg_out[i] = CV_Kfold(y,splits,FIT_weibull,CVM_weibull,alpha[i])$avg_cvm
+}
+
+plot(cvm_avg_out~alpha,type="l")
+alpha[which.min(cvm_avg_out)]
+```
+Question 3\n
+CV for the size parameter of a Negative-Binomial Distribution \n
+```{r}
+FIT_negbi = function(x,train_ind,alpha){
+  data_train = x[train_ind]
+  theta = (mean(data_train)) / (alpha+mean(data_train))
+  return(theta)
+}
+
+CVM_negbi = function(fit_output,x,train_ind,alpha){
+  data_test = x[-train_ind]
+  theta = fit_output
+  return(-mean(dnbinom(data_test,size=alpha,prob=1-theta,log=TRUE)))
+}
+```
+```{r}
+# data loading 
+library(boot); data(discoveries); y = discoveries
+alpha = seq(0.5,100,length.out=200)
+cvm_avg_out = rep(NA,length(alpha))
+# get the splits
+K = 5
+n = length(y)
+splits = SPLIT_Kfold(n,K)
+
+for(i in 1:length(alpha)){
+  cvm_avg_out[i] = CV_Kfold(y,splits,FIT_negbi,CVM_negbi,alpha[i])$avg_cvm
+}
+
+plot(cvm_avg_out~alpha,type="l")
+alpha[which.min(cvm_avg_out)]
+```
+Question 4\n
+CV for shape parameter of a Type III Logistic Distribution \n
+```{r}
+FIT_typeIII = function(x,train_ind,alpha){
+  data_train = x[train_ind]
+  estimate = mle_logisIII_fixed_shape(data_train,alpha)
+  return(estimate)
+}
+
+CVM_typeIII = function(fit_output,x,train_ind,alpha){
+  data_test = x[-train_ind]
+  loss = -mean(dlogisIII(data_test,mu=fit_output[1],sigma=fit_output[2],alpha=alpha,log=TRUE))
+  return(loss)
+}
+# density
+dlogisIII = function(x,mu,sigma,alpha,log=FALSE){
+  z = 1/(1+exp(-(x-mu)/sigma))
+  out = dbeta(z,alpha,alpha,log=TRUE)+log(z)+log(1-z)-log(sigma)
+  if(log==TRUE){return(out)}else{return(exp(out))}
+}
+# mle
+mle_logisIII_fixed_shape = function(y,alpha){
+  f = function(theta){
+    mu=theta[1]; sigma = exp(theta[2]);
+    return(sum(dlogisIII(y,mu,sigma,alpha,log=TRUE)))
+  }
+  opt = optim(c(0,0),f,control=list(fnscale=-1,reltol=1e-12))
+  return(c(mu=opt$par[1],sigma=exp(opt$par[2])))
+}
+```
+```{r}
+# data loading
+library(boot); data(acme); y=acme$acme
+alpha = exp(seq(-4,4,length.out=201))
+cvm_avg_out = rep(NA,length(alpha))
+# get the splits
+K = 5
+n = length(y)
+splits = SPLIT_Kfold(n,K)
+
+for(i in 1:length(alpha)){
+  cvm_avg_out[i] = CV_Kfold(y,splits,FIT_typeIII,CVM_typeIII,alpha[i])$avg_cvm
+}
+
+plot(cvm_avg_out~alpha,type="l")
+alpha[which.min(cvm_avg_out)]
+summary(cvm_avg_out)
+```
+Question 5 \n
+CV for shape parameter of a Hyperbolic Distribution
+```{r}
+dhyperbolic = function(x,mu,sigma,alpha,log=FALSE){
+  out = -alpha*sqrt(1+(x-mu)^2/sigma^2)-log(2*sigma)-alpha-log(besselK(alpha,1,TRUE))
+  if(log==TRUE){return(out)}else{return(exp(out))}
+}
+
+
+# mle function
+mle_hyperbolic_fixed_shape = function(y,alpha){
+  f = function(theta){
+    mu=theta[1]; sigma = exp(theta[2]);
+    return(sum(dhyperbolic(y,mu,sigma,alpha,log=TRUE)))
+  }
+  opt = optim(c(0,0),f,control=list(fnscale=-1,reltol=1e-12))
+  return(c(mu=opt$par[1],sigma=exp(opt$par[2])))
+}
+
+FIT_hyper = function(x,train_ind,alpha){
+  data_train = x[train_ind]
+  estimate = mle_hyperbolic_fixed_shape(data_train,alpha)
+  return(estimate)
+}
+
+CVM_hyper = function(fit_output,x,train_ind,alpha){
+  data_test = x[-train_ind]
+  loss = -mean(dhyperbolic(data_test,mu=fit_output[1],sigma=fit_output[2],alpha=alpha,log=TRUE))
+  return(loss)
+}
+```
+```{r}
+# data loading
+library(boot); data(amis); y=amis$speed
+alpha = exp(seq(-4,4,length.out=201))
+cvm_avg_out = rep(NA,length(alpha))
+# get the splits
+K = 5
+n = length(y)
+splits = SPLIT_Kfold(n,K)
+
+for(i in 1:length(alpha)){
+  cvm_avg_out[i] = CV_Kfold(y,splits,FIT_hyper,CVM_hyper,alpha[i])$avg_cvm
+}
+
+plot(cvm_avg_out~alpha,type="l")
+alpha[which.min(cvm_avg_out)]
+```
+Question 6 \n
+CV for the precision hyper-parameter in a Poisson-Gamma problem \n
+```{r}
+FIT_PoiGam = function(x,train_ind,alpha){
+  data_train = x[train_ind]
+  theta_hat = (alpha+sum(data_train))/(alpha+length(data_train))
+  return(theta_hat)
+}
+
+CVM_PoiGam = function(fit_output,x,train_ind,alpha){
+  data_test = x[-train_ind]
+  loss = -mean(dpois(data_test,lambda=fit_output,log=TRUE))
+  return(loss)
+}
+```
+```{r}
+# data loading
+library(boot); data(fir); y = fir$count
+alpha = seq(0.5,100,length.out=200)
+cvm_avg_out = rep(NA,length(alpha))
+# get the splits
+K = 5
+n = length(y)
+splits = SPLIT_Kfold(n,K)
+
+for(i in 1:length(alpha)){
+  cvm_avg_out[i] = CV_Kfold(y,splits,FIT_PoiGam,CVM_PoiGam,alpha[i])$avg_cvm
+}
+
+plot(cvm_avg_out~alpha,type="l")
+alpha[which.min(cvm_avg_out)]
+```
+Question 7 \n
+CV for the precision hyper-parameter in a Bernoulli-Beta problem\n
+```{r}
+FIT_BernBeta = function(x,train_ind,alpha){
+  data_train = x[train_ind]
+  theta_hat = (alpha+sum(y))/(2*alpha+length(data_train))
+  return(theta_hat)
+}
+
+CVM_BernBeta = function(fit_output,x,train_ind,alpha){
+  data_test = x[-train_ind]
+  loss = -mean(dbinom(data_test,1,prob=fit_output,log=TRUE))
+  return(loss)
+}
+```
+```{r}
+# data loading
+library(boot); data(nodal); y = nodal$stage
+alpha= seq(0.05,100,length.out=200)
+cvm_avg_out = rep(NA,length(alpha))
+# get the splits
+K = 5
+n = length(y)
+splits = SPLIT_Kfold(n,K)
+
+for(i in 1:length(alpha)){
+  cvm_avg_out[i] = CV_Kfold(y,splits,FIT_BernBeta,CVM_BernBeta,alpha[i])$avg_cvm
+}
+
+plot(cvm_avg_out~alpha,type="l")
+alpha[which.min(cvm_avg_out)]
+```
+Question 8 \n
+CV for tuning parameter of a L2 Penalized Least Squares problem \n
+```{r}
+FIT_L2 = function(x,train_ind,lambda){
+  data_train = x[train_ind]
+  mu_hat = mean(data_train)/(1+lambda)
+  return(mu_hat)
+}
+
+CVM_L2 = function(fit_output,x,train_ind,lambda){
+  data_test = x[-train_ind]
+  loss = mean((data_test-fit_output)^2)
+  return(loss)
+}
+```
+```{r}
+library(boot); data(acme); y=acme$acme
+lambda=exp(seq(-4,4,length.out=201))
+cvm_avg_out = rep(NA,length(lambda))
+# get the splits
+K = 5
+n = length(y)
+splits = SPLIT_Kfold(n,K)
+
+for(i in 1:length(lambda)){
+  cvm_avg_out[i] = CV_Kfold(y,splits,FIT_L2,CVM_L2,lambda[i])$avg_cvm
+}
+
+plot(cvm_avg_out~lambda,type="l")
+lambda[which.min(cvm_avg_out)]
+```
+Question 9 \n
+CV for tuning parameter of a L1 Penalized Least Squares problem \n
+```{r}
+FIT_L1 = function(x,train_ind,lambda){
+  data_train = x[train_ind]
+  y_bar = mean(data_train)
+  if(y_bar > lambda){
+    mu_hat = y_bar - lambda
+  }else if(y_bar < -lambda){
+    mu_hat = y_bar + lambda
+  }else{
+    mu_hat = 0
+  }
+  return(mu_hat)
+}
+
+CVM_L1 = function(fit_output,x,train_ind,lambda){
+  data_test = x[-train_ind]
+  loss = mean((data_test-fit_output)^2)
+  return(loss)
+}
+```
+```{r}
+library(boot); data(amis); y=amis$speed
+lambda=exp(seq(-4,4,length.out=201))
+cvm_avg_out = rep(NA,length(lambda))
+# get the splits
+K = 5
+n = length(y)
+splits = SPLIT_Kfold(n,K)
+
+for(i in 1:length(lambda)){
+  cvm_avg_out[i] = CV_Kfold(y,splits,FIT_L1,CVM_L1,lambda[i])$avg_cvm
+}
+
+plot(cvm_avg_out~lambda,type="l")
+lambda[which.min(cvm_avg_out)]
+```
+Question 10 \n
+CV for tuning parameter of a L1 Penalized Least Squares Regression problem \n
+```{r}
+FIT_L1_2 = function(data,train_ind,lambda){##AJW##
+  y = data$y##AJW##
+  x = data$x##AJW##
+  data_train_x = x[train_ind]
+  data_train_y = y[train_ind]
+  mean_x = mean(data_train_x)
+  mean_y = mean(data_train_y)
+  cov_xy_hat = mean((data_train_y-mean_y)*(data_train_x-mean_x))
+  var_x_hat = mean((data_train_x-mean_x)^2)
+  beta_0 = cov_xy_hat/var_x_hat
+  if(cov_xy_hat > lambda){
+    beta_hat = beta_0 - lambda
+  }else if(cov_xy_hat < -lambda){
+    beta_hat = beta_0 + lambda
+  }else{
+    beta_hat = 0
+  }
+  alpha_hat = mean_y - beta_hat*mean(data_train_x)
+  return(c(alpha=alpha_hat,beta=beta_hat))
+}
+
+CVM_L1_2 = function(fit_output,data,train_ind,lambda){##AJW##
+  y = data$y##AJW##
+  x = data$x##AJW##
+  data_test_x = x[-train_ind]
+  data_test_y = y[-train_ind]
+  loss = mean((data_test_y-(fit_output[1]+data_test_x*fit_output[2]))^2)
+  return(loss)
+}
+```
+```{r}
+library(palmerpenguins); data("penguins");
+y = penguins$flipper_length_mm; x = penguins$body_mass_g;
+ind = !(is.na(y) | is.na(x)); y = y[ind]; x = x[ind]
+data_xy = data.frame(x=x,y=y) ##AJW##
+
+lambda = exp(seq(-1,7,length.out=201))
+cvm_avg_out = rep(NA,length(lambda))
+# get the splits
+K = 5
+n = length(y)
+splits = SPLIT_Kfold(n,K)
+
+for(i in 1:length(lambda)){
+  cvm_avg_out[i] = CV_Kfold(data_xy,splits,FIT_L1_2,CVM_L1_2,lambda=lambda[i])$avg_cvm ##AJW##
+}
+
+plot(cvm_avg_out~lambda,type="l")
+lambda[which.min(cvm_avg_out)]
+```

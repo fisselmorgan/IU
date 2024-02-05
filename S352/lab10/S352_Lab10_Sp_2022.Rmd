@@ -1,0 +1,212 @@
+---
+title: "Lab 10: Posterior Analysis"
+author: "Womack"
+date: "3/30/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 0. Structure of this Lab
+Section 1 explains the models we are going to work with in this lab. These two models are flavors of Poisson models where the concentration parameter will be given by $\theta$. The first will be a point null hypothesis $M_0:\theta=\theta_0$. The other assumes an exponential distribution for $\theta$ where the prior rate is given by $\phi_0$ and the model is $M_1:\theta|\phi_0\sim Exp(\text{rate}=\phi_0)$. So, while $\theta$ is free in $M_1$, the parameter $\phi_0$ is fixed. We will revisit this problem in a lab lab next week and change things in two ways, changing assumptions about the sampling distribution of the data and changing assumptions about the prior distribution for the parameter.
+
+Section 2 explains risk of the posterior mean and the method of comparing these models using the marginal distribution of the data. The model with the largest marginal distribution for the data is the model that is supported most by the data. In contrast to the maximum likelihood, the integration involved in marginal calculations creates a natural penalty for model dimension. This will be discussed using the BIC, which is like the AIC but has a penalty that changes with sample size.
+
+Section 3 lays out your tasks. Section 3.0 will simulate data and store the necessary statistics for doing the subsequent analyses. Tasks 3.1 has you think about the risk of the point estimate given by the posterior mean for model $M_1$ and compares this to the risk of the MLE. Task 3.2 has you think about the Bayes' factor from a frequentist perspective. Task 3.3 has you think about the BIC frequenist perspective. Task 3.4 has you generate predictions from $M_1$ for a specific data example and compare the predicted values to the observed values in order to think about model fit.
+
+For turning in the lab you must make the following modifications to this file.
+
+1. Change the author field in the preamble above to your name followed by a space and then your IUID#  (all together in quotes so it is a string).
+
+2. Rename the file by putting your last name in the file name. For instance, I would call my solution file `lab9_womack.Rmd`
+
+3. DO NOT MODIFY Sections 0, 1, 2, and 3.0. Where there are tasks that require you to write an `R` chunk, do NOT delete the instructions, just place your chunk after the instructions for the task. Where there are questions that you need to answer, do NOT delete the questions, simply place your answer to a question in a new paragraph after the question is posed. If a task asks you to repeat procedures from previous tasks, you do not need to copy the intructions or questions from previous tasks, but you must repeat all of the procedures from the tasks completely and answer all of the questions in the new context. You can put all of your code for such a task into a single `R` chunk if doing so makes you happy.
+
+# 1. The Models
+In this lab, we want to think about how to compare models. We will think about this using the example of Poisson data. We assume $y_1,\ldots,y_n$ are independnet and identically distributed as $Poisson(\theta)$ when conditioned on $\theta$. The null model we will think about is a specific value of $\theta$ and so the model is given by $M_0:\theta=\theta_0$. It does not really matter what value we assume, and I am going to assume $\theta_0=1$. Any specific value we assume will provide qualitatively the same results.
+
+The second model we have will assume that $\theta\neq\theta_0$. In contrast the the LRT, we cannot just assume $\theta\neq\theta_0$ in a Bayesian model. We have to specify a distribution for $\theta$. This could be any distribution on the positive reals. In order to make our lives somewhat easy, I am going to assume an exponential prior with rate $\phi_0$. So the second model is $M_1:\theta|\phi_0\sim Exp(\phi_0)$.
+
+The model $M_0$ is very easy to analyze because there are no free parameters. The density of the data is given by
+\[
+f(y_1,\ldots,y_n|\theta_0,M_0) = \prod_{i=1}^n\left[\dfrac{\theta_0^{y_i}}{y_i!}
+exp(-\theta_0)\right]
+= \dfrac{\theta_0^{\sum y_i}}{\prod y_i!}\exp(-n\theta_0)
+= \dfrac{\theta_0^{n\bar{y}}}{\prod y_i!}\exp(-n\theta_0)
+\]
+The model $M_1$ has a parameter $\theta$. So we can compute the posterior for $\theta$ and the marginal for the data. 
+The posterior is (up to proption) given by
+\[
+f(\theta|y_1,\ldots,y_n,\phi_0,M_1) \propto 
+f(y_1,\ldots,y_n|\theta,\phi_0,M_1)\, f(\theta|\phi_0,M_1)
+\propto
+\theta^{n\bar{y}}\exp(-(n+\phi_0)\theta)
+\]
+and so $\theta|y_1,\ldots,y_n,\phi_0,M_1\sim Gamma\left(1+n\bar{y},\phi_0+n\right)$ and
+\[
+f(\theta|y_1,\ldots,y_n,\phi_0,M_1)=\dfrac{(\phi_0+n)^{n\bar{y}+1}}{\left(n\bar{y}\right)!}\theta^{n\bar{y} + 1 - 1}\exp(-(\phi_0+n)\theta)
+\]
+and the posterior expectation is
+\[
+E[\theta|y_1,\ldots,y_n,\phi_0,M_1] = \dfrac{n\bar{y}+1}{n+\phi_0}
+= \dfrac{n}{n+\phi_0}\bar{y} + \dfrac{\phi_0}{n+\phi_0}\dfrac{1}{\phi_0}
+\]
+which is a compromise between the MLE $\bar{y}$ and the prior mean $1/\phi_0$. Another quantity we can compute is the marginal distribution for the data under $M_1$. This is given by
+\[
+\begin{array}{rcl}
+f(y_1,\ldots,y_n|\phi_0,M_1) &=&
+\dfrac{
+f(y_1,\ldots,y_n|\theta,\phi_0,M_1)\, f(\theta|\phi_0,M_1)
+}{
+f(\theta|y_1,\ldots,y_n,\phi_0,M_1)
+}
+\\&=&
+\dfrac{
+\dfrac{\theta^{n\bar{y}}}{\prod y_i!}\exp(-n\theta)
+\phi_0\exp(-\phi_0\theta)
+}{
+\dfrac{(\phi_0+n)^{n\bar{y}+1}}{\left(n\bar{y}\right)!}\theta^{n\bar{y} + 1 - 1}\exp(-(\phi_0+n)\theta)
+}
+\\&=&
+\dfrac{\left(n\bar{y}\right)!}{\prod y_i!}
+\dfrac{\phi_0}{(\phi_0+n)^{n\bar{y}+1}}
+\end{array}
+\]
+One last thing we can think about computing is the distribution for a new $Y$, call it $y_{new}$ conditioned on all of the observed $Y_i$. this is given by an integral which we can actually do by division here
+\[
+\begin{array}{rcl}
+f(y_{new}|y_1,\ldots,y_n,\phi_0,M_1) 
+&=&
+\displaystyle{\int_0^\infty}
+f(y_{new}|\theta,\phi_0,M_1)\, 
+f(\theta|y_1,\ldots,y_n,\phi_0,M_1) 
+\ \text{d}\theta
+\\&=&
+\dfrac{f(y_{new},y_1,\ldots,y_n|\phi_0,M_1)}{f(y_1,\ldots,y_n|\phi_0,M_1) }
+\\&=&
+\dfrac{
+\dfrac{\left(n\bar{y}+y_{new}\right)!}{y_{new}!\prod y_i!}
+\dfrac{\phi_0}{(\phi_0+n+1)^{n\bar{y}+y_{new}+1}}
+}{
+\dfrac{\left(n\bar{y}\right)!}{\prod y_i!}
+\dfrac{\phi_0}{(\phi_0+n)^{n\bar{y}+1}}
+}
+\\&=&
+\dfrac{\left(n\bar{y}+y_{new}\right)!}{\left(n\bar{y}\right)!y_{new}!}
+\dfrac{(\phi_0+n)^{n\bar{y}+1}}{(\phi_0+n+1)^{n\bar{y}+y_{new}+1}}
+\end{array}
+\]
+This looks quite strange and I have no real idea how to analyze it, so we will take a look at it by taking samples. 
+
+# 2. Inferential Quantities
+Now, we have done the full Bayesian analysis of the models. Of course, $M_0$ was trivially easy and $M_1$ was difficult, but we have analyzed it completely. However, there are still lingering questions. First, exactly how does this prior in $M_1$ affect our understanding of $\theta$. Second, can we find a reasonable way to compare these two models.  
+
+## 2.1. Point Estimate Risk
+One way to (at least partially) answer the first question is to think about the effect of the prior on our point estimate. The Bayes' estimator for $\theta$ is the posterior expectation. Well, I should be careful here. It is *a* Bayes' estimator. Specifically, it is the Bayes' estimator that minimizes posterior expected squared error loss. But, that pedantry aside, it is just a guess at the true value based on the posterior. The posterior expectation seems like a reasonable guess at face value.
+
+The posterior expectation is just a function of the data and the prior. It is a point estimate of $\theta$. Let's call it $\tilde{\theta}$. In our case, we got
+\[
+\tilde{\theta} = E[\theta|y_1,\ldots,y_n,\phi_0,M_1]=\dfrac{n\bar{y}+1}{n+\phi_0}
+=\dfrac{n\hat{\theta}+1}{n+\phi_0}
+\]
+where $\hat{\theta}=\bar{y}$ is the MLE. We can compute the quadratic risk of the estimator $\tilde{\theta}$ over repreated sampling. If the data are actually independent and identically distributed with true value $\theta=\theta^*$, then the quadratic risk of $\tilde{\theta}$ is given by
+\[
+Risk[\tilde{\theta}] = E[(\tilde{\theta}-\theta^*)^2]
+\]
+where the expectation is with respect to the sampling distribution. We could try to figure out what this is by hand, but instead we will estimate it using simulated data.
+
+## 2.2. Bayes' Factors
+When thinking about comparing the models, we should use our intuition from the LRT and think about the model that best supports the data. To do this, we can compare the marginal distributions of the data under the two models. This is called a Bayes' Factor
+\[
+\begin{array}{rcl}
+BF_{0,1} &=& \dfrac{
+f(y_1,\ldots,y_n|\theta_0,M_0)
+}{
+f(y_1,\ldots,y_n|\phi_0,M_1)
+}
+\\&=&
+\dfrac{
+\dfrac{\theta_0^{n\bar{y}}}{\prod y_i!}\exp(-n\theta_0)
+}{
+\dfrac{\left(n\bar{y}\right)!}{\prod y_i!}
+\dfrac{\phi_0}{(\phi_0+n)^{n\bar{y}+1}}
+}
+\\&=&
+\dfrac{
+\theta_0^{n\bar{y}}\exp(-n\theta_0)\times(\phi_0+n)^{n\bar{y}+1}
+}{
+\left(n\bar{y}\right)!\times \phi_0
+}
+\end{array}
+\]
+The bigger the Bayes' Factor, $BF_{0,1}$, the more evidence we have for $M_0$ over $M_1$ (and vice versa). In contrast to the LRT analysis where we were maximizing, here the operation of integration means that the numerator does not have to be less than the denominator.  Under some (most) comparisons, the Bayes' factor converges to either $\infty$ or $0$ as the sample size grows depending on whether the null model is true. The log of the Bayes' Factor is often used for model comparison because of underflow/overflow issues that arise when computing densities. 
+
+Notice that, in this case, the Bayes' Factor only depends on the data through $\bar{y}$. Thus, $\bar{y}$ is sufficient for the model comparison. It is not always possible to find statistics that are sufficient for model comparison and they do not always correspond to statistics that are sufficient for estimation. But, in these very simple cases where there is one parameter and a point null hypothesis, a statistic that is sufficient for the parameter is sufficient for comparison.
+
+## 2.3. The BIC
+Oftentimes the integral that is needed to get the marginal distribution of the data is really difficult. Or it requires some extra (possibly onerous) computation (next week! but only a bit). Or one does not really feel comfortable specifying an exact prior for the parameter. Or one wants to do a quick model comparison and get the of properties of Bayesian methods but without all of the baggage of all of the assumptions. Enter the BIC (Bayesian Information Criterion, from Gideon Schwarz and sometimes called the SIC for Schwarz Information Criterion). The BIC for a model $M$ with parameter $\theta_M$ is given by
+\[
+BIC(M) = -2\times\ell(\hat{\theta}_M;y_1,\ldots,y_n) + d\times\log(n)
+\]
+where $d=\dim(\theta_M)$, $\ell$ is the log-likelihood under $M$, and $\hat{\theta}_M$ is the MLE. So, like the AIC, smaller BIC is better. The difference is that the multiplier on $d$ depends on the sample size $n$. The difference in BICs is often used to compare models. In the case of our two models, the difference in BIC is
+\[
+BIC(M_0) - BIC(M_1) = 
+2n\bar{y}\log(\bar{y})-2n\bar{y} - \log(n) -\left(2n\bar{y}\log(\theta_0)-2n\theta_0\right)
+\]
+And the larger the BIC the more evidence there is for the model $M_1$ over the model $M_0$.
+
+# 3. Tasks
+
+## 3.0 Task 0: Simulating Data
+The quantities we are interested in only depend on the data through the mean. There is this nice result that the sum of Poissons is Poisson. Specifically, if $Y_1,\ldots,Y_n$ are iid Poisson with mean $\theta^*$ then $\sum Y_i$ is Poisson with mean $n\theta^*$. I am going to use this in simulating data to make it take less computational time to simulate the data. I am going to do 10000 simulations of size $20$ and $10000$ simulations of size $200$ for a true mean parameter $\theta^*=1$ and iid data.
+```{r}
+theta_star = 1
+N_sims = 10000
+
+n_1 = 20
+sum_y_1 = rpois(N_sims,n_1*theta_star)
+mean_y_1 = sum_y_1/n_1
+
+n_2 = 200
+sum_y_2 = rpois(N_sims,n_2*theta_star)
+mean_y_2 = sum_y_2/n_2
+```
+From these, we can look at the sampling distributions of the MLE (the sample mean)
+```{r}
+dens_y_1 = density(mean_y_1)
+dens_y_2 = density(mean_y_2)
+plot(dens_y_1,main="Sampling Density for MLE",xlab="MLE",ylim=c(0,max(c(dens_y_1$y,dens_y_2$y))))
+lines(dens_y_2,col="blue",lty=2)
+legend("topright",legend=c("Sample Size 20","Sample Size 200"),col=c("black","blue"),lty=c(1,2))
+```
+
+We can clearly see the effect of the CLT in the decreased variance for larger sample sizes.
+
+## 3.1 Task 1:
+For the values of $\phi_0$ being $1$ and $10$, plot the densities of the posterior expectation with the density of the MLE for both values of the sample size. Using the samples, estimate the quadratic risk for the posterior expectation for both sample sizes and choices of $\phi_0$. Comment on your results.
+
+## 3.2 Task 2:
+For $\phi_0$ being $1$ and $10$ and $\theta_0$ being $1$ and $2$, make density plots of $\log(BF_{0,1})$ for each choice of sample size (you should have $8$ densities total). From these results, what can you say about differences in model comparison when $\theta_0$ is well chosen (the same as $\theta^*=1$) and when $\phi_0$ is well chosen ($E[\theta|M_0]=\theta^*=1$) and when they are not? What is the effect of increasing the sample size from $20$ to $200$?
+
+## 3.3 Task 3:
+For $\phi_0$ being $1$ and $10$ and $\theta_0$ being $1$ and $2$, make density plots of $BIC(M_0)-BIC(M_1)$ for each choice of sample size (you should have $8$ densities total). From these results, what can you say about differences in model comparison when $\theta_0$ is well chosen (the same as $\theta^*=1$) and when $\phi_0$ is well chosen ($E[\theta|M_0]=\theta^*=1$) and when they are not? What is the effect of increasing the sample size from $20$ to $200$?
+
+## 3.4 Task 4:
+One last thing to think about is prediction. Suppose we have sampled $n=30$ observations with sample mean $4.5$. For $\phi_0$ being $1$ and $0.2$, take $10000$ samples from the predictive distribution for a new $y$. One draw from the predictive distribution is obtained by sampling a $\theta$ from the posterior for $\theta$ conditioned on the observed data and then sampling a Poisson $y$ with that value of theta being used for the mean parameter. Summarize the predictive distributions for each choice of $\phi_0$ by computing the percentage of the predictions that are $0, 1, 2, \ldots, 10$. What differences do you see in these predictive distributions?
+
+HINT: Use vectorization for the sampling, here is an example assuming that $\theta$ has an exponential posterior distribution with mean 1 (of course, it does not, this is just for a code example)
+```{r}
+N_samp = 10000
+theta_draw = rexp(N_samp,1)
+pred_draw = rpois(N_samp,theta_draw) #vectorization being used!
+percents = rep(NA,11)
+names(percents) = c(0:10)
+for(i in 1:11){
+  percents[i] = mean(pred_draw==(i-1))
+}
+percents
+```
+
+

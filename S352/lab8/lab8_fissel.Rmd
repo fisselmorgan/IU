@@ -1,0 +1,233 @@
+---
+title: 'Lab 8: Conditional Independence in the Trivariate Normal'
+author: "MorganFissel 2000498470"
+date: "3/6/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(boot)
+```
+
+# 0. Structure of this Lab
+Section 1 discusses the MLE for the trivariate normal.
+
+Section 2 correlation in the context of the conditional independence model.
+
+Section 3 lays out your tasks. Section 3.0 provides a function that can be used with `boot` to produce bootstrap estimates.
+
+For turning in the lab you must make the following modifications to this file.
+
+1. Change the author field in the preamble above to your name followed by a space and then your IUID#  (all together in quotes so it is a string).
+
+2. Rename the file by putting your last name in the file name. For instance, I would call my solution file `lab8_womack.Rmd`
+
+3. DO NOT MODIFY Sections 0, 1, 2, and 3.0. Where there are tasks that require you to write an `R` chunk, do NOT delete the instructions, just place your chunk after the instructions for the task. Where there are questions that you need to answer, do NOT delete the questions, simply place your answer to a question in a new paragraph after the question is posed. If a task asks you to repeat procedures from previous tasks, you do not need to copy the intructions or questions from previous tasks, but you must repeat all of the procedures from the tasks completely and answer all of the questions in the new context. You can put all of your code for such a task into a single `R` chunk if doing so makes you happy.
+
+
+# 1. MLE for Trivariate Normal Distributions
+Let $\mathbf{X}=(X_1,X_2,X_3)^T$ be a random vector ($3\times 1$ dimensional matrix) following a trivariate normal with mean vector 
+\[
+\boldsymbol{\mu}=\left(\begin{array}{c}\mu_1\\\mu_2\\\mu_3\end{array}\right)
+\]
+and covariance matrix
+\[
+\boldsymbol{\Sigma} = 
+\left(
+\begin{array}{ccc}
+\sigma_1^2 &\sigma_1\sigma_2\rho_{12} &\sigma_1\sigma_3\rho_{13}\\
+\sigma_1\sigma_2\rho_{12} &\sigma_2^2 &\sigma_2\sigma_3\rho_{23}\\
+\sigma_1\sigma_3\rho_{13} &\sigma_2\sigma_3\rho_{23} &\sigma_3^2
+\end{array}
+\right)
+\]
+where $1-\rho_{12}^2>0$, $1-\rho_{13}^2>0$, $1-\rho_{23}^2>0$ and $1-\rho_{12}^2-\rho_{13}^2-\rho_{23}^2+2\rho_{12}\rho_{13}\rho_{23} > 0$.
+
+Suppose we have data $\mathbf{x}_1,\ldots,\mathbf{x}_n$. The MLE for the mean $\boldsymbol{\mu}$ is the sample mean and is given by
+\[
+\boldsymbol{\widehat{\mu}} = \frac{1}{n}\sum_{i=1}^n\mathbf{x}_i
+=
+\left(
+\begin{array}{c}
+\frac{1}{n}\sum_{i=1}^n x_{i,1}\\
+\frac{1}{n}\sum_{i=1}^n x_{i,2}\\
+\frac{1}{n}\sum_{i=1}^n x_{i,3}
+\end{array}
+\right).
+\]
+The MLE for $\boldsymbol{\Sigma}$ is the sample covariance matrix and given by 
+\[
+\boldsymbol{\widehat{\Sigma}}
+=
+\frac{1}{n}\sum_{i=1}^n
+\left(\mathbf{x}_i - \boldsymbol{\widehat{\mu}}\right)
+\left(\mathbf{x}_i - \boldsymbol{\widehat{\mu}}\right)^T
+\quad
+\text{where}
+\quad
+\left(\boldsymbol{\widehat{\Sigma}}\right)_{j,k}
+=
+\frac{1}{n}\sum_{i=1}^n
+\left(\mathbf{x}_{i,j} - \boldsymbol{\widehat{\mu}}_{j}\right)
+\left(\mathbf{x}_{i,k} - \boldsymbol{\widehat{\mu}}_{k}\right).
+\]
+We can write `R` code to compute the MLE
+```{r}
+mle_trivnorm_full = function(x){
+  if(!("matrix"%in%class(x))){x=as.matrix(x)}
+  # x is a n by 3 matrix
+  n = dim(x)[1]
+  mu = apply(x,2,mean)
+  Sigma = crossprod(x)/n - tcrossprod(mu)
+  loglik =  -3*n/2*log(2*pi)-1/2*determinant(Sigma, logarithm=TRUE)$modulus - n/2
+  return(list(theta=list(mu=mu,Sigma=Sigma),loglik=loglik))
+}
+```
+
+# 2. Correlation in the Conditonal Independence Model
+The conditional independence model that assumes that $X_2$ and $X_3$ are conditionally independent given $X_1$ is defined using the regression framework as
+\[
+\begin{array}{rcl}
+X_1 &=& \mu_1 + \epsilon_1\\
+X_2 &=& \alpha_0 +\alpha_1 X_1 + \epsilon_{1|2}\\
+X_3 &=& \beta_0 +\beta_1 X_1 + \epsilon_{3|1,2}
+\end{array}
+\]
+where the $\epsilon$'s are independent normal random variables with mean $0$ and different variances. If we compute the covariances, we get
+\[
+\begin{array}{rcl}
+Cov(X_1,X_2) &=& = \alpha_1 Var(X_1)\\
+Cov(X_1,X_3) &=& = \beta_1 Var(X_1)\\
+Cov(X_2,X_3) &=& = \alpha_1\beta_1 Var(X_1)\\
+&=& \frac{Cov(X_1,X_2)Cov(X_1,X_3)}{Var(X_1)}\\
+Cor(X_2,X_3) &=& Cor(X_1,X_2)Cor(X_1,X_3).
+\end{array}
+\]
+This same product of correlations formula works when we make different conditional independence assumptions. For example, if we assume that $X_1$ and $X_2$ are conditionally independent givne $X_3$, then we would have
+\[
+Cor(X_1,X_2) = Cor(X_1,X_3)Cor(X_2,X_3).
+\]
+Similarly, if we assume that $X_1$ and $X_3$ are conditionally independent givne $X_2$, then we would have
+\[
+Cor(X_1,X_3) = Cor(X_1,X_2)Cor(X_2,X_3).
+\]
+
+
+# 3. Tasks
+
+# 3.0 Non-parametric Bootstrap
+We need to write a function that we can use for the non-parametric bootstrap. We are going to write the function to compute and return the MLE.
+```{r}
+stat_fun = function(x,ind=c(1:dim(x)[1])){
+  x = x[ind,]
+  mle = mle_trivnorm_full(x)
+  means = mle$theta$mu
+  Sigma = mle$theta$Sigma
+  variances = diag(Sigma)
+  names(variances) = names(means)
+  covariances = c(Sigma[1,2],Sigma[1,3],Sigma[2,3])
+  names(covariances) = paste(names(variances)[c(1,1,2)],names(variances)[c(2,3,3)],sep="_")
+  out = c(means=means,variances=variances,covariances=covariances)
+  return(out)
+}
+```
+
+## 3.1 Bootstrap CIs for the MLE
+Load a subset of the iris data using
+```{r}
+data(iris)
+x = as.matrix(iris[iris$Species!="setosa",c(1:3)])
+```
+Get 10000 bootstrap samples of the MLE using `boot` and the `stat_fun` from 3.0. Use `boot.ci` to get confidence intervals for the output of `stat_fun`.
+
+```{r}
+boot_out = boot(x,stat_fun,10000)
+intervals = list()
+for(i in 1:9){
+  intervals[[i]] = boot.ci(boot_out,type="basic",index=i)
+}
+intervals
+names(intervals) = names(stat_fun(x))
+```
+
+## 3.2 Bootstrap CIs for Correlations
+Recall, the MLE of a transformed variable is the transformation applied to the MLE. Write a new statistic function, `stat_fun_2`, to compute the estimated correlations. Make this function output the three correlations between different variables as a vector. Get 10000 boostrap replicates of the output from this new function. Use `boot.ci` to get confidence intervals for this output.
+```{r}
+stat_fun2 = function(x,ind=1:nrow(x)){
+  x = x[ind,]
+  stat_out = stat_fun(x)
+  corr_sw_pl = stat_out['covariances.Sepal.Width_Petal.Length']/
+    sqrt(
+    stat_out['variances.Sepal.Width']*
+      stat_out['variances.Petal.Length']
+  )
+  corr_sl_pl = stat_out['covariances.Sepal.Length_Petal.Length']/
+    sqrt(
+    stat_out['variances.Sepal.Length']*
+      stat_out['variances.Petal.Length']
+  )
+  corr_sw_sl = stat_out['covariances.Sepal.Length_Sepal.Width']/ ##AJW## fixed my issue
+    sqrt(
+    stat_out['variances.Sepal.Width']*
+      stat_out['variances.Sepal.Length']
+  )
+  return(c(
+    corr_sw_sl = corr_sw_sl,
+    corr_sl_pl = corr_sl_pl,
+    corr_sw_pl = corr_sw_pl
+  ))
+}
+```
+```{r}
+boot_out = boot(x,stat_fun2,10000)
+intervals = list()
+for(i in 1:3){ ##AJW## only loop to 3
+  intervals[[i]] = boot.ci(boot_out,type="basic",index=i)
+}
+intervals
+names(intervals) = names(stat_fun2(x))
+```
+
+## 3.3 Bootstrap CI to Test Conditional Independence
+Write a new statistic function, `stat_fun_3`, to compute the difference
+\[
+d = Cor(X_2,X_3) - Cor(X_1,X_2)Cor(X_1,X_3).
+\]
+Use `boot` and `boot.ci` to form confidence intervals for $d$. Based on these intervals, would you reject the null hypothesis that $d=0$?
+```{r}
+stat_fun3 = function(x,ind=1:nrow(x)){
+  x = x[ind,]
+  corr_out = stat_fun2(x)
+  d = corr_out[3] - corr_out[2]*corr_out[1]
+  #corr_out[1] - corr_out[2]*corr_out[3]
+  #corr_out[2] - corr_out[3]*corr_out[1]
+  out = c(d)
+  return(out)
+}
+```
+```{r}
+boot_out = boot(x,stat_fun3,10000)
+intervals = boot.ci(boot_out,type="basic")
+intervals
+names(intervals) = names(stat_fun3(x))
+```
+
+## 3.4 Using `lm`
+Another way to analyze the data is to use the `lm` function. This function fits linear models and its output is a special class called the `lm` class. One function that acts on this class is `coef`, which pulls out the coefficients of the linear regression. If we run a regression like
+```{r}
+lm_coef_fun = function(x,ind=1:nrow(x)){
+x = x[ind,]
+mod = lm(x[,3]~x[,1]+x[,2])
+
+coef(mod)[3]
+}
+```
+```{r}
+boot_out = boot(x,lm_coef_fun,10000)
+intervals = boot.ci(boot_out,type='basic')
+intervals
+names(intervals) = names(lm_coef_fun(x))
+```
+then we can look at the regression output. If the coefficient on `x[,2]` is 0 in the above regression (as is suggested by the `summary` output), then we can conclude that $X_3$ is conditionally independent of $X_2$ given $X_1$. Write a new statistic function, `stat_fun_3`, that outputs the coefficient on `x[,2]` from the above regression and use `boot` and `boot.ci` to form confidence intervals for that coefficient. Would you reject the null hypothesis that this coefficient is 0?
+I would be unable to reject the null hypothesis, as the interval contains 0, however it is slightly heavier tailed on the right side of 0, but still does include 0. 

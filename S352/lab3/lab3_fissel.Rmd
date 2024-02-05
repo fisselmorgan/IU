@@ -1,0 +1,465 @@
+---
+title: 'Lab 3: Likelihoods and Computing the MLE'
+author: "Morgan Fissel 2000498470"
+date: "1/28/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(boot)
+```
+
+# 0. Structure of this Lab
+Section 1 explains the connection between some loss functions and probability density functions.
+
+Section 2 provides some `R` code for computing the likelihood and the MLE. We will compute the log-likelihood using built in density functions when possible. When not possible, we will write our own suite of functions for densities, probabilities, quantile functions, and random number generators.
+
+Section 3 lays out your tasks. Section 3.0 will discuss the MLE in the context of the Huber estimator. We will have a probability density function that depends on three parameters (location $\mu$, caliper $\delta$, and shape $\alpha$).
+
+For turning in the lab you must make the following modifications to this file.
+
+1. Change the author field in the preamble above to your name followed by a space and then your IUID#  (all together in quotes so it is a string).
+
+2. Rename the file by putting your last name in the file name. For instance, I would call my solution file `lab3_womack.Rmd`
+
+3. DO NOT MODIFY Sections 0, 1, 2, and 3.0. Where there are tasks that require you to write an `R` chunk, do NOT delete the instructions, just place your chunk after the instructions for the task. Where there are questions that you need to answer, do NOT delete the questions, simply place your answer to a question in a new paragraph after the question is posed. If a task asks you to repeat procedures from previous tasks, you do not need to copy the intructions or questions from previous tasks, but you must repeat all of the procedures from the tasks completely and answer all of the questions in the new context. You can put all of your code for such a task into a single `R` chunk if doing so makes you happy.
+
+
+# 1. From Loss Functions to Densities
+We are going to discuss the connection behind loss functions and likelihoods. We have used $L$ to represent both in class and this can get problematic when discussing both at once. We will use $Loss$ for loss functions and $Like$ for likelihood functions to keep things clear in this lab. Our first two loss functions were the absolute error loss and squared error loss.
+\[
+\begin{array}{rcl}
+Loss_1(y;\mu) &=& |y-\mu|\\
+Loss_2(y;\mu) &=& (y-\mu)^2
+\end{array}
+\]
+The mapping we are interested in is $g(y;\mu)=\exp\left(-Loss(y;\mu)\right)$. For these two losses, we get
+\[
+\begin{array}{rcl}
+g_1(y;\mu) &= \exp\left(-Loss_1(y;\mu)\right) &= \exp\left(-|y-\mu|\right)\\
+g_2(y;\mu) &= \exp\left(-Loss_2(y;\mu)\right) &= \exp\left(-(y-\mu)^2\right)
+\end{array}
+\]
+When these functions have finite area below them, they can be normalized by this area to define a probability density function $f(y;\mu)$. Letting $NC$ (for Normalizing Constant) be the area under $g$ over the range of $y$ values. In these cases, we get
+\[
+\begin{array}{rcl}
+f_1(y;\mu) &= \frac{g_1(y;\mu)}{NC_1} &= \frac{1}{2}\exp\left(-|y-\mu|\right)\\
+f_2(y;\mu) &= \frac{g_1(y;\mu)}{NC_1} &= \frac{1}{\sqrt{\pi}}\exp\left(-(y-\mu)^2\right)
+\end{array}
+\]
+We can modify these loss functions by scaling them. In this case we use
+\[
+\begin{array}{rcl}
+Loss_1(y;\mu,\sigma) &=& \frac{|y-\mu|}{\sigma}\\
+Loss_2(y;\mu,\sigma) &=& \frac{(y-\mu)^2}{2\sigma^2}
+\end{array}
+\]
+where the squaring for $Loss_2$ are so that $\sigma$ scales $y$ as it does in $Loss_1$. The multiplying by two in $Loss_2$ is mostly an historical artifact. The probability density functions we get are
+\[
+\begin{array}{rcl}
+f_1(y;\mu,\sigma) &=& \frac{1}{2\sigma}\exp\left(-\frac{|y-\mu|}{\sigma}\right)\\
+f_2(y;\mu,\sigma) &=& \frac{1}{\sqrt{2\pi\sigma^2}}\exp\left(-\frac{(y-\mu)^2}{2\sigma^2}\right)
+\end{array}
+\]
+These are called the Laplace density and normal density respectively. We will plot these densities for $\mu=0$ and $\sigma=1$. But first, we need to write a density function for the Laplace distribution because there are not built-in functions for it.
+```{r}
+dlaplace = function(x,location=0,scale=1,log=FALSE){
+  out = -abs(x-location)/scale -log(2*scale)
+  if(log){out}else{exp(out)}
+}
+```
+Now, let's go ahead and plot the normal and Laplace distributions.
+```{r}
+x = seq(-6,6,length.out=10000)
+dens_norm = dnorm(x)
+dens_laplace = dlaplace(x)
+plot(dens_norm~x,main="Densities",ylim=c(0,0.5),ylab="Density",xlab="y",type="l")
+lines(dens_laplace~x,col="blue")
+legend("topleft",c("Normal","Laplace"),fill=c("black","blue"))
+```
+
+
+
+# 2. Computing the MLE
+This is all covered in great detail in `likelihoods.pdf`, for completeness, we include function for computing the MLE for the normal distribution and write one for the Laplace distribution. One issue is that the log-likelihood for the Laplace distribution is not differentiable at the values of the observed data. This precludes us computing the Hessian for that model. The problem is with $\mu$, and so we have modified the funciton so that it does not return a `vcov` matrix.
+```{r}
+mle_normal = function(y,return_vcov=TRUE){
+  # The parameterization is for theta = (mu,sigma)
+  # mu = mean, sigma = standard deviation
+  # The returned vcov is in this parameterization
+  # initial optimization is done using log(sigma)
+  f_norm_trans = function(theta_trans){
+    # function for log-likelihood for transformed variables
+    mu = theta_trans[1]
+    sigma = exp(theta_trans[2])
+    sum(dnorm(y,mean=mu,sd=sigma,log=TRUE))
+  }
+  # getting optimum under transformation
+  control = list(fnscale=-1,maxit=1000,reltol=1e-10)
+  opt_trans = optim(c(0,0),f_norm_trans,control=control,hessian=FALSE)
+  # making output for untransformed variables
+  mu = opt_trans$par[1]
+  sigma = exp(opt_trans$par[2])
+  theta = c(mu=mu,sigma=sigma)
+  loglik = opt_trans$value
+  out = list(theta=theta,loglik=loglik)
+  # getting vcov if we want to return it
+  if(return_vcov){
+    f_norm = function(theta){
+      # log-likelihood function for untransformed variables
+      mu = theta[1]
+      sigma = theta[2]
+      sum(dnorm(y,mean=mu,sd=sigma,log=TRUE))
+    }
+    # getting vcov and putting it into output
+    # optimHess just computes and outputs the hessian
+    hessian = optimHess(theta,f_norm,control=control)
+    # we have to negate and invert the hessian for vcov
+    # solve inverts matrices
+    out$vcov = solve(-hessian)
+  }
+  # returning output
+  return(out)
+}
+mle_laplace = function(y){
+  # The parameterization is for theta = (mu,sigma)
+  # mu = location, sigma = scale
+  # The returned vcov is in this parameterization
+  # initial optimization is done using log(sigma)
+  f_laplace_trans = function(theta_trans){
+    # function for log-likelihood for transformed variables
+    mu = theta_trans[1]
+    sigma = exp(theta_trans[2])
+    sum(dlaplace(y,location=mu,scale=sigma,log=TRUE))
+  }
+  # getting optimum under transformation
+  control = list(fnscale=-1,maxit=1000,reltol=1e-10)
+  opt_trans = optim(c(0,0),f_laplace_trans,control=control,hessian=FALSE)
+  # making output for untransformed variables
+  mu = opt_trans$par[1]
+  sigma = exp(opt_trans$par[2])
+  theta = c(mu=mu,sigma=sigma)
+  loglik = opt_trans$value
+  out = list(theta=theta,loglik=loglik)
+  # returning output
+  return(out)
+}
+```
+Let's test these out on a dataset.
+```{r}
+library(boot)
+data(rock)
+y_r = log(rock$shape)
+fit_norm_y_r = mle_normal(y_r,FALSE)
+fit_laplace_y_r = mle_laplace(y_r)
+fit_norm_y_r
+fit_laplace_y_r
+```
+The normal model is giving a larger log-likelihood, and so it fits the data better than the Laplace model. Let's test it out on another dataset.
+```{r}
+data(bigcity)
+y_bc = log(bigcity$x)
+fit_norm_y_bc = mle_normal(y_bc,FALSE)
+fit_laplace_y_bc = mle_laplace(y_bc)
+fit_norm_y_bc
+fit_laplace_y_bc
+```
+In this dataset, the Laplace model is slightly better than the normal.
+
+# 3. Tasks
+
+##  3.0 MLE from Huber Loss
+In order to think more about measures of center, we are going to code up the Huber loss funciton as a density. We need a density function. We will include scaling of the loss similar to how we did for squared error and absolute error loss. This introduces a shape parameter into the distribution. The scaled Huber loss is
+\[
+Loss_{Huber}(Y;\mu,\delta,\alpha) = 
+\begin{cases}
+\alpha \frac{(Y-\mu)^2}{2\delta^2} & |Y-\mu|\leq \delta\\
+\alpha \frac{|Y-\mu|}{\delta}-\frac{\alpha}{2} &|Y-\mu|>\delta
+\end{cases}
+\]
+We can re-write this as a density using
+\[
+f_{Huber}(y;\mu,\delta,\alpha)
+=\frac{\exp\left(-Loss_H(y;\mu,\delta,\alpha)\right)}{NC_H}
+\]
+where $NC_{Huber}$ is the normalizimng constant for this density. It is pretty ugly and cannot be computed analytically. For those of you that care (not necessary), it is given by
+\[
+NC_{Huber} = \frac{2\delta\exp\left(-\frac{\alpha}{2}\right)}{\alpha}+\delta\sqrt{\frac{2\pi}{\alpha}}
+\left(\Phi\left(\sqrt{\alpha}\right)-\Phi\left(-\sqrt{\alpha}\right)\right)
+\]
+there $\Phi$ is the standard normal cdf and cannot be written in closed form in terms of elementary functions. This kind of thing happens a lot. We have a "nice" looking loss function that seems to lead to a nice density, but the normalizing constant is basically insane. Hence, computers!
+
+Here is the density function. Note how we are computing NC seperately from the loss piece. It would be even better if we could compute the log of the normalizing constant on its own (especially if this is more numerically stable). Unfortunately we can't in this case.
+```{r}
+dhuber = function(y,mu=0,delta=1,alpha=1,log=FALSE){
+  # mu is location, delta is caliper, alpha is tail-shaoe
+  NC = 2*exp(-alpha/2)*delta/alpha+ 
+    delta*sqrt(2*pi/alpha)*(pnorm(sqrt(alpha))-pnorm(-sqrt(alpha)))
+  log_NC = log(NC)
+  out = -alpha*ifelse(abs(y-mu)<=delta,(y-mu)^2/(2*delta^2),abs(y-mu)/delta-1/2)
+  out = out - log_NC
+  if(log){out}else{exp(out)}
+}
+```
+We can wrap this into an MLE function. Unfortunately, this is another loss function that does not 
+have a curvature for every value of all of the parameters, so we will once again not output the `vcov` matrix.
+```{r}
+mle_huber = function(y){
+  # The parameterization is for theta = (mu,delta,alpha)
+  # The returned vcov is in this parameterization
+  # initial optimization is done using log(delta) and log(alpha)
+  f_huber_trans = function(theta_trans){
+    # function for log-likelihood for transformed variables
+    mu = theta_trans[1]
+    delta = exp(theta_trans[2])
+    alpha = exp(theta_trans[3])
+    sum(dhuber(y,mu,delta,alpha,log=TRUE))
+  }
+  # getting optimum under transformation
+  control = list(fnscale=-1,maxit=1000,reltol=1e-10)
+  opt_trans = optim(c(0,0,0),f_huber_trans,control=control,hessian=FALSE)
+  # making output for untransformed variables
+  mu = opt_trans$par[1]
+  delta = exp(opt_trans$par[2])
+  alpha = exp(opt_trans$par[3])
+  theta = c(mu=mu,delta=delta,alpha=alpha)
+  loglik = opt_trans$value
+  out = list(theta=theta,loglik=loglik)
+  # returning output
+  return(out)
+}
+```
+
+##  3.1 Task 1
+Fit (and report) the MLE from the Huber density to both datasets. 
+Plot a density estimator of the data along with fitted densities for the normal, Laplace, and Huber models. Comment on the fit of the models to the data and the estimates of $\mu$ versus those from squared error and absolute error loss.
+```{r}
+# task 1
+# the MLE from the Huber density for both data sets
+##AJW## just input the data to the mle function, not dhuber(data) OH!
+#mle_huber(dhuber(y_bc))
+#mle_huber(dhuber(y_r))
+fit_huber_y_bc = mle_huber(y_bc)
+fit_huber_y_r = mle_huber(y_r)
+
+
+# Plot a density estimator of the data along with fitted densities for the normal, Laplace, and Huber models. 
+##AJW## changing ylim to get everything on the plot
+#plot(density(y_bc))
+plot(density(y_bc),ylim=c(0,1))
+
+x_seq = seq(min(y_bc),max(y_bc),length.out=1000)
+dens_norm = dnorm(x_seq,mean=fit_norm_y_bc[["theta"]][["mu"]],
+                  sd=fit_norm_y_bc[["theta"]][["sigma"]])
+##AJW## same procedure with the other two models
+# dens_laplace = dlaplace(x_seq,location=laplace_mle_mu,scale=laplace_mle_sigma) 
+dens_laplace = dlaplace(x_seq,location=fit_laplace_y_bc[[1]][1],scale=fit_laplace_y_bc[[1]][2]) 
+dens_huber = dhuber(x_seq,mu=fit_huber_y_bc[[1]][1],delta=fit_huber_y_bc[[1]][2],alpha=fit_huber_y_bc[[1]][3])
+
+##AJW## then just add the density values plotted against the x values
+lines(dens_norm~x_seq,col="blue",lty=2)
+lines(dens_laplace~x_seq,col="red",lty=3)
+lines(dens_huber~x_seq,col="green",lty=4)
+
+##AJW
+legend("topright",legend=c("KDE","normal","laplace","huber"),col=c("black","blue","red","green"),lty=c(1,2,3,4),bty="n")
+
+##AJW## the cutoff on the left is because I used the range of the 
+##data to make x-axis values for the densities of the fitted 
+##models for the plot. You can change this if you want, not necessary.
+
+```
+```{r}
+plot(density(y_r),ylim=c(0,2))
+
+x_seq = seq(min(y_r),max(y_r),length.out=1000)
+dens_norm = dnorm(x_seq,mean=fit_norm_y_r[["theta"]][["mu"]],
+                  sd=fit_norm_y_r[["theta"]][["sigma"]])
+dens_laplace = dlaplace(x_seq,location=fit_laplace_y_r[[1]][1],scale=fit_laplace_y_r[[1]][2]) 
+dens_huber = dhuber(x_seq,mu=fit_huber_y_r[[1]][1],delta=fit_huber_y_r[[1]][2],alpha=fit_huber_y_r[[1]][3])
+
+
+lines(dens_norm~x_seq,col="blue",lty=2)
+lines(dens_laplace~x_seq,col="red",lty=3)
+lines(dens_huber~x_seq,col="green",lty=4)
+
+legend("topright",legend=c("KDE","normal","laplace","huber"),col=c("black","blue","red","green"),lty=c(1,2,3,4),bty="n")
+```
+The Laplace fits the data the worst I'd say, because the sharp point is quite different than the three other smooth curves.
+Th Huber and normal curves look to be a pretty good fit for the data, it seems to line up closely to the KDE and the curves aren't very different from the KDE either.
+The mu estimates of Huber and normal seem to do a better job than the Laplace.
+
+##  3.2 Task 2
+We are going to (slightly) rewrite the loss function (with added shape parameter) as
+\[
+Loss_{Hyperbolic}(Y;\mu,\delta,\alpha) = \alpha\sqrt{1+\frac{(y-\mu)^2}{\delta^2}}
+\]
+The log of the normalizing constant for the hyperbolic loss can be computed using the code
+```{r}
+log_NC_hyperbolic = function(delta,alpha){
+  if(log(alpha)< -20){
+    -log(alpha)+log(2)+log(delta)
+  }else{
+    log(besselK(alpha,1,TRUE)) - alpha + log(2)+log(delta)
+  }
+
+}
+```
+Write a density function based on hyperbolic loss called `dhyperbolic` modeled after the one we wrote for the Huber model. Make sure that it has an option for outputting the density or the log of the density. Make sure that it takes in the arguments `y`, `mu`, `delta`, `alpha`, `log` with default values 
+`mu=0`, `delta=1`, `alpha=1`, `log=FALSE`.
+
+In order to compare this density to the other three we have, plot all four on the same plot using the default parameter values. What similarities or differences are there between the density functions?
+```{r}
+#task 2
+# we need to write a density function for the hyperbolic loss
+dhyperbolic = function(y,mu=0,delta=1,alpha=1,log=FALSE){
+  # log_dens = -loss - log(normalizing constant)
+  log_NC_hyperbolic = function(delta,alpha){
+    if(log(alpha)< -20){
+      -log(alpha)+log(2)+log(delta)
+    }else{
+      log(besselK(alpha,1,TRUE)) - alpha + log(2)+log(delta)
+    }
+  }
+  
+  log_density = -alpha*sqrt(1+(y-mu)^2/delta^2) - log_NC_hyperbolic(delta,alpha)
+  
+  if(log==TRUE){
+    return(log_density)
+  }else{
+    return(exp(log_density))
+  }
+  
+}
+dens_hyper = dhyperbolic(x_seq,mu=fit_huber_y_r[[1]][1],delta=fit_huber_y_r[[1]][2],alpha=fit_huber_y_r[[1]][3])
+plot(dens_hyper~x_seq, ylim=c(0,1.8))
+lines(dens_norm~x_seq,col="blue",lty=2)
+lines(dens_laplace~x_seq,col="red",lty=3)
+lines(dens_huber~x_seq,col="green",lty=4)
+legend("topright",legend=c("hyperbolic","normal","laplace","huber"),col=c("black","blue","red","green"),lty=c(1,2,3,4),bty="n")
+```
+Hyperbolic, normal, and Huber with default values curves all seem to be the roughly the same.
+Laplace, however, is different type of curve with a similar central measure. 
+So they all are actually pretty similar with their default values.
+
+##  3.3 Task 3
+Write an MLE function for the hyperbolic loss that uses `method="BFGS"`. You do not need to make it return a `vcov` matrix. compute the MLEs for our datasets using the function and compare the estimates of $\mu$ you get to those from the previous methods.
+```{r}
+# task 3
+mle_hyperbolic = function(y){
+  # need a log_likelihood function that takes in par
+  # need to use optim on this function
+  # return the par value from optim
+  # use transformations to make optim's life easy
+  
+  log_likelihood_fn_trans = function(par){
+    mu = par[1]
+    delta = exp(par[2]) #has to be positive
+    alpha = exp(par[3]) #has to be positive
+    
+    return(sum(dhyperbolic(y,mu,delta,alpha,log=TRUE)))
+  }
+  
+  opt = optim(c(0,0,0),log_likelihood_fn_trans,control = list(fnscale=-1))
+  
+  par = opt$par
+  par[2] = exp(par[2])
+  par[3] = exp(par[3])
+  names(par) = c("mu","delta","alpha")
+  
+  return(list(par = par, loglik = opt$value))
+}
+mle_hyperbolic(y_bc)
+mle_hyperbolic(y_r)
+mle_huber(y_bc)
+mle_huber(y_r)
+mle_normal(y_bc)
+mle_normal(y_r)
+```
+The estimates from hyperbolic loss seem to be quite similar to the Huber,normal,and even Laplace.
+They all seem to be pretty decent ways to estimate $\mu$.
+
+##  3.4 Task 4
+Something weird seems to be happening with the hyperbolic loss. We should check if it is unimodal (for that matter, we should check if the Huber loss is unimodal also). To do this, we need to go through the following steps. 1) Make a function that allows us to the get the likelihood evaluated at the MLE for a fixed $\delta$. 2) Vectorize this function. 3) Plot these values over a range of $\delta$. I will do this for the Huber density. Your job in this task is to do it for the Hyperbolic loss and comment on the plots that you get.
+```{r}
+mle_huber_fix = function(y,delta=1){
+  # The parameterization is for theta = (mu,delta,alpha)
+  # The returned vcov is in this parameterization
+  # initial optimization is done using log(delta) and log(alpha)
+  f_huber_trans = function(theta_trans){
+    # function for log-likelihood for transformed variables
+    mu = theta_trans[1]
+    # delta = exp(theta_trans[2])
+    alpha = exp(theta_trans[2])# 3])
+    sum(dhuber(y,mu,delta,alpha,log=TRUE))
+  }
+  # getting optimum under transformation
+  control = list(fnscale=-1,maxit=1000,reltol=1e-16)
+  par=c(0,0)# ,0,0)
+  opt_trans = optim(par,f_huber_trans,method="BFGS",control=control,hessian=FALSE)
+  # making output for untransformed variables
+  mu = opt_trans$par[1]
+  # delta = exp(opt_trans$par[2])
+  alpha = exp(opt_trans$par[2])# 3])
+  theta = c(mu=mu,alpha=alpha)# ,delta=delta,alpha=alpha)
+  loglik = opt_trans$value
+  out = list(theta=theta,loglik=loglik)
+  # returning output
+  return(out)
+}
+loglik_fun_mle_huber_single = function(delta,y){
+  mle_huber_fix(y,delta)$loglik# theta[2]
+}
+loglik_fun_mle_huber = Vectorize(loglik_fun_mle_huber_single,vectorize.args = c("delta"))
+
+delta = exp(seq(-10,10,length.out=2000))
+loglik_max_bc = loglik_fun_mle_huber(delta,y=y_bc)
+plot(loglik_max_bc~log(delta),type="l",main="Biggest City Data",ylim=c(-1.5,0)+max(loglik_max_bc))
+loglik_max_r = loglik_fun_mle_huber(delta,y=y_r)
+plot(loglik_max_r~log(delta),type="l",main="Rock Data",ylim=c(-2,0)+max(loglik_max_r))
+```
+
+```{r}
+mle_hyper_fix = function(y,delta=1){
+  # The parameterization is for theta = (mu,delta,alpha)
+  # The returned vcov is in this parameterization
+  # initial optimization is done using log(delta) and log(alpha)
+  f_hyper_trans = function(theta_trans){
+    # function for log-likelihood for transformed variables
+    mu = theta_trans[1]
+    # delta = exp(theta_trans[2])
+    alpha = exp(theta_trans[2])# 3])
+    sum(dhyperbolic(y,mu,delta,alpha,log=TRUE))
+  }
+  # getting optimum under transformation
+  control = list(fnscale=-1,maxit=1000,reltol=1e-16)
+  par=c(0,0)# ,0,0)
+  opt_trans = optim(par,f_hyper_trans,method="Nelder-Mead",control=control,hessian=FALSE)
+  # making output for untransformed variables
+  mu = opt_trans$par[1]
+  # delta = exp(opt_trans$par[2])
+  alpha = exp(opt_trans$par[2])# 3])
+  theta = c(mu=mu,alpha=alpha)# ,delta=delta,alpha=alpha)
+  loglik = opt_trans$value
+  out = list(theta=theta,loglik=loglik)
+  # returning output
+  return(out)
+}
+loglik_fun_mle_hyper_single = function(delta,y){
+  mle_hyper_fix(y,delta)$loglik# theta[2]
+}
+loglik_fun_mle_hyper = Vectorize(loglik_fun_mle_hyper_single,vectorize.args = c("delta"))
+
+delta = exp(seq(-10,10,length.out=2000))
+loglik_max_bc = loglik_fun_mle_hyper(delta,y=y_bc)
+plot(loglik_max_bc~log(delta),type="l",main="Biggest City Data",ylim=c(-1.5,0)+max(loglik_max_bc))
+loglik_max_r = loglik_fun_mle_hyper(delta,y=y_r)
+plot(loglik_max_r~log(delta),type="l",main="Rock Data",ylim=c(-2,0)+max(loglik_max_r))
+```
+The Biggest City Data is non symmetric. 
+The Rock Data is symmetric. 
+Both curves are quite smooth. 
+Both datasets exhibit different behaviors, with different types of curves. 
+
+We can see distinctly different behaviors under the two datasets. For `y_bc` it is clear that using the mean as a measure of center is inadequate and we should use something more like the median (though not exactly the median). For `y_r`, we are maximizing the log-likelihood as $\delta\rightarrow\infty$. This means that we are also taking $\alpha\rightarrow\infty$. This is making the density converge to the normal density and the variance of the limit of $\widehat{\delta^2}/\widehat{\alpha}$ as $\delta\rightarrow\infty$. Also, notice the weird jumps down that are happening when the caliper goes through data points. I do not like this, it is weird. Hopefully the hyperbolic loss makes things look smoother.

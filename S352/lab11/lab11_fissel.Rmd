@@ -1,0 +1,423 @@
+---
+title: "Lab 11: Sampling for Model Comparison"
+author: "Morgan Fissel 2000498470"
+date: "4/6/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 0. Structure of this Lab
+Section 1 explains the models we are going to work with in this lab. The first is Poisson. The second is Negative Binomial, which we have seen is an overdispersed version of the Poisson. This will allow us to introduce the idea of a latent variable to help with the sampling involved in the negative binomial distribution. This latent variable depends on an overdispersion parameter, which we will give an Exponential Prior. The prior distribution we will use for the mean parameter of the Poisson (and mean parameter of the negative binomial) will be a $F(2,2)$ distribution, which will be given by a hierarchy of Exponential distributions. I know this seems like a lot, but there is really only one new piece in this that is hard and I will do that piece in Section 3.0.
+
+Section 2 provides some `R` code for sampling the latent variable associated with the negative binomial model.
+
+Section 3 lays out your tasks. Section 3.0 will provide a function for sampling the overdispersion parameter of the negative binomial distribution. This uses a general method called the Metropolis-Hastings algorithm. I do not expect you to understand this method in this class (it is a great topic in a Bayesian course). We simply need it to be able to the sampling of the shape parameter because the form of its full conditional distribution is not an easy statistical family to sample from. I am not having you read Section 11.3 on Bayesian Computation in Statistical Models by AC Davison, but I do highly recommend that you read it if you have the time and are so inclined. There is a section on Gibbs Sampling (which we have done a lot of) and a section on the Metropolis-Hastings algorithm.
+
+For turning in the lab you must make the following modifications to this file.
+
+1. Change the author field in the preamble above to your name followed by a space and then your IUID#  (all together in quotes so it is a string).
+
+2. Rename the file by putting your last name in the file name. For instance, I would call my solution file `lab10_womack.Rmd`
+
+3. DO NOT MODIFY Sections 0, 1, 2, and 3.0. Where there are tasks that require you to write an `R` chunk, do NOT delete the instructions, just place your chunk after the instructions for the task. Where there are questions that you need to answer, do NOT delete the questions, simply place your answer to a question in a new paragraph after the question is posed. If a task asks you to repeat procedures from previous tasks, you do not need to copy the intructions or questions from previous tasks, but you must repeat all of the procedures from the tasks completely and answer all of the questions in the new context. You can put all of your code for such a task into a single `R` chunk if doing so makes you happy.
+
+# 1. Modeling Setup
+We are going to work with two models. These models are both for count data. One is Poisson, which we saw in Lab 9. The difference here is that we are going to give the mean parameter of the Poisson a more flexible distribution, an $F(2,2)$ distribution, which will be achieved via an Exponential-Exponential hierarchy. The second model will be a Negative Binomial distribution. This is parameterized in such a way that there are two main parameters. One is the mean parameter and the other is the variance.
+
+## 1.1. The Poisson Model
+The data $y_1,\ldots,y_n|\theta$ are assumed to be conditionally <em>iid</em> following a Poisson distribution with conditional mean $\theta$. The conditional variance is also $\theta$. The parameter $\theta$ will be given an $F(2,2)$ prior distribution. The prior density is
+\[
+f(\theta) = \frac{1}{(1+\theta)^2}
+\]
+which is very heavy tailed in comparison to the Exponential prior we used in Lab 9. In fact, this distribution does not have a finite mean or variance, so it should produce minimal bias in the posterior and allow the data to have more influence over the estimate of $\theta$ than the Exponential prior would. In fact, we have already seen that the $F(2,2)$ distribution can be written as a hierarchy of Exponential distributions by
+\[
+\theta|\phi \sim \text{Exponential}(\text{rate}=\phi)
+\qquad\text{and}\qquad
+\phi \sim \text{Exponential}(\text{rate}=1)
+\]
+This parameter expansion allows us to easily derive a Gibbs sampler for the parameters of the model $(\theta,\phi)$. The full conditionals are given by
+\[
+\theta|\phi,y_1,\ldots,y_n \sim \text{Gamma}(\text{shape}=s_n+1,\text{rate}=n+1)
+\qquad\text{and}\qquad
+\phi|\theta,y_1,\ldots,y_n \sim \text{Gamma}(\text{shape}=2,\text{rate}=1+\theta)
+\]
+where $s_n=\sum y_i$. Notice the conditional independence, $\phi\perp\!\!\!\perp (y_1,\ldots,y_n)\, |\, \theta$. When writing a Gibbs sampler for this model, it is easiest to start at $\theta=\bar{y}=s_n/n$ and cycle through updating first $\phi$ and then $\theta$ using the full conditionals given above.
+
+## 1.2. Negative Binomial Model
+Our second model is a Negative Binomial model. We are going to assume that $y_1,\ldots,y_n|\theta,\nu$ is Negative binomial with conditional mean $\theta$ and conditional variance $\theta\left(1+\frac{\theta}{\nu}\right)$. Notice, that in contrast to the Poisson Model the negative binomial model has an increased variance. We are not resticting $\nu$ to be a positive integer, just requiring it to be positive. Now, the mass function for this Negative-Binomial$(\theta,\nu)$ is
+\[
+f(y|\theta,\nu) = \frac{\Gamma(y+\nu)}{y!\Gamma(\nu)}
+\frac{\theta^{y}\nu^\nu}{(\theta+\nu)^{y+\nu}}
+\]
+This might seem very counterintuitive, but bear with me. First, let's assume that $\nu = r$ is a positive integer. Second, let's define $p=\frac{\theta}{\theta+\nu}$. The mass function become
+\[
+f(y|p,r) = \binom{y+r-1}{y}p^y(1-p)^r
+\]
+which is exactly the negative binomial distribution we had before. So, the parameterization using $\theta$ and $\nu$ is merely a different parameterization and will allow us to take advantage of a parameter expansion. Now, before getting to that, I want to note that $\text{E}[Y|p,r] = \frac{pr}{1-p} = \frac{\theta}{\theta+\nu}\frac{\theta+\nu}{\nu}\nu=\theta$ and $\text{Var}[Y|r,p] = \frac{pr}{(1-p)^2} = \frac{\theta}{\theta+\nu}\left(\frac{\theta+\nu}{\nu}\right)^2\nu= \theta\frac{(\theta+\nu)}{\nu} = \theta\left(1+\frac{\theta}{\nu}\right)$. And so our parameterization corresponds to what we had in previous HW assignments. In order to complete the Bayesian model, we need priors in the parameters on $\theta$ and $\nu$. We will treat them as independent in the prior with $\theta\sim \text{F}(2,2)$ and $\nu\sim \text{F}(2,2)$. The former conforms with the prior for our Poisson model and you will use the same hierarchy for it as in the Poisson model. The latter was a convenience choice. I can argue for this choice from a variety of persepectives. I can argue against it. I want to leave it alone because we already have enough moving pieces. I will provide you with functions for dealing with $\nu$, so do not worry too much about it.
+
+Now, for the parameter expansion. We introduce a variable $z_i$ for each $y_i$. We are going to assume that the $y_i$ when we know the $z_i$ and $\theta$ is Poisson with intensity parameter $z_i\theta$ and so the conditional mean and variance are both $z_i\theta$. We are assuming that the $y_i$ is idependent of $\phi$ (from the parameter expansion for $\theta$ in the prior as before) and independent of $\nu$ when we know $z_i$ and $\theta$. The $z_i$ conditioned on $\nu$ will be assumed to be independent of $\theta$ and come from a Gamma distribution with mean $1$ and variance $1/\nu$.
+
+We do not observe the $z_i$ and will have to integrate them out. This is what provides the means and variances for the $y_i$ conditioned on $\theta$ and $\nu$ that we saw before as well as the mass function for the Negative-Binomial distribution, which is what were after in the first place. Now, the Gamma distribution that achieves this mean and variance has shape $\nu$ and rate $\nu$. As $\nu$ increases to $\infty$, this Gamma distibution becomes exactly a point mass at $1$ and the Poisson with mean $\theta$ is recovered for the sampling distribution of the data.
+
+Okay! that was long winded enough, let's write the hierarchy for the model.
+\[
+\begin{array}{rcl}
+y_i|z_i,\theta,\nu,\phi &\sim& \text{Poisson}(z_i\theta)\\
+z_i|\theta,\nu,\phi &\sim& \text{Gamma}(\nu,\nu)\\
+\nu|\theta,\phi &\sim& \text{F}(2,2)\\
+\theta|\phi &\sim& \text{Exponential}(\text{rate}=\phi)\\
+\phi &\sim& \text{Exponential}(1)
+\end{array}
+\]
+where the $y$s are independent given the $z$s and $\theta$ and the $z$s are independnet and identically distriuted when conditioning on $\nu$. The full conditionals that are easy (obtained by kernel matching) are
+\[
+\begin{array}{rcl}
+z_i|y_i,\theta,\nu,\phi &\sim&\text{Gamma}(y_i+\nu,\theta+\nu)\\
+\theta|y_1,\ldots,y_n,z_1,\ldots,z_n,\phi,\nu &\sim& \text{Gamma}(s_n+1,t_n+\phi)\\
+\phi|y_1,\ldots,y_n,z_1,\ldots,z_n,\theta,\nu &\sim& \text{Gamma}(2,1+\theta)
+\end{array}
+\]
+where $t_n = \sum z_i$. All that remains is the difficult sampling of $\nu$ conditioned on everything else. I will provide a function to do that in Task 3.0 which you will just use blindly. The sampling of the $z_i$ will be discussed in Section 2 using the fact that some functions are vectorized. We will also discuss computing the marginal of the data using the "Chib trick" (Chib, JASA 1995) in Section 2. I will provide a function in Section 2.2 for using the "Chib trick" for the Poisson model. In Section 3.0 I will provide functions for sampling the $\nu$ parameter from the negative binomial and a function that combines the "Chib trick" and numerical integration for the computing the marginal of the data under the Negative Binomial model.
+
+# 2. Sampling the Latent $z$s and the "Chib Trick"
+For estimation of $\theta$ and $\nu$ in the Negative Binomial model, we need to be able to sample from all of the full conditionals. Those for $\theta$ and $\phi$ are easy. We will discuss the sampling of the latent $z$s using the fact the `rgamma` is vectorized.
+
+For model comparison, we have to be able to compute the marginal of the data. It would be wonderful if we could do this using the division trick we used before. However, that is going to be impossible by hand and difficult numerically, and so we will let the samples do the difficult bits for us. This is the "Chib Trick." Here, we will discuss it in the context of the Poisson model with F$(2,2)$ prior and then discuss it in the context of the Negative-Binomial model in Section 3.0. In both cases, we are going to use the information in the samples in order to estimate the posterior density of the parameters evaluated at a point.
+
+## 2.1 Sampling the Latent $z$s in the Negative Binomial Model
+The latent $z$s are a vector of values. We can quickly sample them in `R` using the line of code `z_curr = rgamma(n, y+nu_curr, theta_curr+nu_curr)`. For any of our subsequent calculations (like the distribution for $\nu$), all that matters is the sum of the $z$s and the sum of the logs of the $z$s. We have denoted the sum of the $z$s by $t_n$ and let's denote the sum of the logs of the $z$s by $u_n = \sum \log(z_i)$. After sampling the $z$s, we can compute `t_n_curr = sum(z_curr)` and `u_n_curr = sum(log(z_curr))` and discard the actual values of `z`. This will make our lives much easier because we will not have to store the vector of the $z$s at each iteration, just these two numbers. 
+
+## 2.2 Estimating the Marginal Density of the Data in the Poisson Model Using the "Chib Trick"
+We discuss in detail how to do the "Chib Trick" for estimating the posterior density of the Poisson model with F$(2,2)$ prior. The purpose is to try to compute something like
+\[
+f(y_1,\ldots,y_n) = \frac{f(y_1,\ldots,y_n|\theta)\,f(\theta)}{f(\theta|y_1,\ldots,y_n)}
+\]
+when the sampling distribution of the $y$s given $\theta$ is Poisson$(\theta)$ and the prior density for $\theta$ is $f(\theta)=1/(1+\theta)^2$ (the density of an F$(2,2)$ random variable). We can easily compute the numerator from the problem setup. The difficulty lies in computing the denominator. The shape of the posterior is
+\[
+f(\theta|y_1,\ldots,y_n)\propto \frac{\theta^{s_n}}{(1+\theta)^2}\exp(-n\theta)
+\]
+where $s_n = \sum y_i$. I do not know how to get the normalizing constsant for this density. Sure, this is a one dimensional density and we could do numerical integration using the `integrate` function. However, we are already doing a Gibbs Sampler using the parameter expansion using $\phi$, so we might as well take advantage of the samples we are taking and use them to compute the denominator. 
+
+Recall, the setup for the Gibbs Sampler is
+\[
+\theta|\phi,y_1,\ldots,y_n \sim \text{ Gamma}(s_n+1,n+\phi)
+\quad\text{and}\quad
+\phi|\theta,y_1,\ldots,y_n \sim \text{ Gamma}(2,1+\theta)
+\]
+We do the Gibbs sampler and get pairs of samples $(\theta_j,\phi_j)$ for $j=1,\ldots,N_{\text{samps}}$ from it. For any fixed $\theta^*$ we can estimate the marginal posterior density at $\theta^*$ by 
+\[
+f(\theta^*|y_1,\ldots,y_n) = \text{E}[f(\theta^*|\phi,y_1,\ldots,y_n)|y_1,\ldots,y_n]
+\approx
+\frac{1}{N_{\text{samps}}} \sum_{j=1}^{N_{\text{samps}}} f(\theta^*|\phi_j,y_1,\ldots,y_n)
+\]
+In using the samples, we need to be careful of numerical underflow and overflow issues, but this is merely an annoyance to be dealt with. We can use any $\theta^*$ we want, and it is usually best to use a point of high density, like the posterior mean for $\theta^*$. The estimate of the marginal is given by
+\[
+f(y_1,\ldots,y_n) \approx 
+\frac{f(y_1,\ldots,y_n|\theta^*)\,f(\theta^*)}{
+\frac{1}{N_{\text{samps}}} \sum_{j=1}^{N_{\text{samps}}} f(\theta^*|\phi_j,y_1,\ldots,y_n)
+}
+\]
+and it is usually best to compute things on the log scale to help with numerical underflow and overflow issues.
+
+We could also just as easily do this for any fixed $\phi^*$. The numerator would be
+\[
+f(y_1,\ldots,y_n|\phi^*)\,f(\phi^*)
+\]
+where the first term would have to be computed using kernel matching and division. The denominator would be approximated by
+\[
+f(\phi^*|y_1,\ldots,y_n) = \text{E}[f(\phi^*|\theta,y_1,\ldots,y_n)|y_1,\ldots,y_n]
+\approx
+\frac{1}{N_{\text{samps}}} \sum_{j=1}^{N_{\text{samps}}} f(\phi^*|\theta_j,y_1,\ldots,y_n)
+\]
+Overall, the approximation is given by
+\[
+f(y_1,\ldots,y_n)\approx
+\frac{f(y_1,\ldots,y_n|\phi^*)\,f(\phi^*)}{
+\frac{1}{N_{\text{samps}}} \sum_{j=1}^{N_{\text{samps}}} f(\phi^*|\theta_j,y_1,\ldots,y_n)
+}
+\]
+There is one advantage to the approximation of the denominator for $\phi^*$ over that for $\theta^*$, which is numerical stability. Even if the marginal posterior for $\theta$ becomes like an infinite spike, the marginal posterior for $\phi$ does not. This is because the $\theta$ sees the data, but the $\phi$ only sees $\theta$. Even with an infinite amount of data, the best we can do is learn $\theta$ perfectly and get one piece of information for $\phi$. However, this is a bit of a digression. On to the functions.
+The input is the data `y` and the Gibbs sampled `theta` and `phi`. The output is the log of the marginal of the data. Notice that I have combined multiple steps on each line (separated by a semicolon). This was to have three lines. First is data manipulation, second is numerator calculation, third is denominator calculations. I do not expect you to understand this code, but I do expect you to understand the idea using the samples to estimate the marginal posterior for $\theta$ evaluated at a given $\theta^*$ (or for $\phi$ evaluated at a given $\phi^*$).
+```{r}
+chib_poisson_using_theta = function(y,theta,phi){
+  theta_star = mean(theta); n = length(y); s_n = sum(y)
+  log_numerator = sum(dpois(y,theta_star,log=TRUE))-2*log(1+theta_star)
+  a = dgamma(theta_star,s_n+1,n+phi,log=TRUE); ma = max(a); log_denominator = ma+log(mean(exp(a-ma)))
+  return(log_numerator-log_denominator)
+}
+```
+
+```{r}
+chib_poisson_using_phi = function(y,theta,phi){
+  phi_star = mean(phi); n = length(y); s_n = sum(y)
+  log_numerator = lfactorial(s_n)-sum(lfactorial(y))+log(phi_star)-(1+s_n)*log(n+phi_star)-phi_star
+  log_denominator = log(mean(dgamma(phi_star,2,1+theta)))
+  return(log_numerator-log_denominator)
+}
+```
+Either of these functions produce an estimate of the log of the marginal density of the data $y$ from the Gibbs output.
+
+# 3. Tasks
+
+## 3.0 Task 0: Sampling the Negative Binomial Overdispersion Parameter
+This parameter is hard to sample. We cannot do a Gibbs sampler because its full conditional distribution is given by
+\[
+f(\nu|z_1,\ldots,z_n,y_1,\ldots,y_n,\theta,\phi)\propto \frac{\left(\prod z_i\right)^\nu\nu^{n\nu}}{\Gamma(\nu)^n(1+\nu)^2}\exp\left(-\nu\sum z_i\right)
+=
+\frac{\nu^{n\nu}}{\Gamma(\nu)^n(1+\nu)^2}\exp\left(-\nu\left[\sum z_i-\sum\log(z_i)\right]\right)
+\]
+and I have no idea what this looks like. There are lots of ways to do try to sample this. I am going to approximate the full conditional with a Gamma distribution using its maximum and curvature. My approximation will not be perfect and I will have to correct for any imbalances that I introduce. This is an application of a more general method called the Metropolis-Hastings Algorithm. Do not worry about it, it would be a good Stat 426 topic. The two statsitics that we need to do the draw from the full conditional for $\nu$ are
+$t_n = \sum z_i$ and $u_n = \sum \log(z_i)$.
+
+### 3.0.1 $\nu$ Sampling Function for the Negative-Binomial Model.
+The inputs to the function are the current values of $\nu$, the current values of the information from the $z$s (the $t_n$ and $u_n$), and the sample size $n$ (the length of $y$). The output is the new draw of $\nu$. There is a non-zero probability that the new value is equal to the current value. This staying put is the correction for imbalance discussed above.
+```{r}
+draw_nu_fun = function(nu_curr,t_n_curr,u_n_curr,n){
+  a = 2/n; b = t_n_curr/n-u_n_curr/n-1; mode = (-(a+b-0.5)+sqrt((a+b-0.5)^2+2*b))/(2*b)
+  for(i in 1:3){mode = mode - (log(mode)-a/(mode+1)-digamma(mode)-b)/(1/mode+a/(mode+1)^2-trigamma(mode))}
+  var = -1/(n*(1/mode+a/(mode+1)^2-trigamma(mode)))
+  c = 1+mode^2/(2*var); shape = c+sqrt(c^2-1); rate = (shape-1)/mode
+  nu_prop = rgamma(1,shape,rate)
+  log_targ = function(nu){n*nu*log(nu)-n*lgamma(nu)-2*log(1+nu)+nu*(u_n_curr-t_n_curr)}
+  log_mh = (dgamma(nu_curr,shape,rate,log=TRUE)-dgamma(nu_prop,shape,rate,log=TRUE)) + (log_targ(nu_prop)-log_targ(nu_curr))
+  if(log(runif(1))<log_mh){return(nu_prop)}else{return(nu_curr)}
+}
+```
+
+### 3.0.2 The Chib Function for the Negative-Binomial Model.
+This is considerably more complicated than in the case of the Poisson model. There is a way to do this just using the samples and accounting for the corrections of the imbalances introduced by the inadequacies of my approximation to the full conditional for $\nu$. I am going to opt for using the samples to do one integral (like we did for the poisson model) and use numerical integration for another. This is much simpler than trying to use the samples to do both. 
+
+If you think this lab is super fun and that playing around with computation and sampling is the best thing in the world, then there are some books that I could recommend that you read (Robert and Casella's Monte Carlo Statistical Methods book comes to mind). For now, just use the function. In the future when you use statistics in your career, sometimes you will just have to trust people on your team and learn to use their functions without understanding the guts perfectly. The inputs to this function are the data `y`, the Gibbs samples for `theta`, `phi`, and `nu`, and the information from the Gibbs draws of the $z$s (`t_n` and `u_n`). The output is an approximation of the log of the marginal of the data.
+```{r}
+chib_negative_binomial = function(y,theta,phi,t_n,u_n,nu){
+  n = length(y); N_samps = length(theta); s_n = sum(y)
+  theta_star = mean(theta); nu_star = mean(nu); phi_star = mean(phi)
+  log_h = function(nu,y,theta_star){if(nu<=0){-Inf}else{sum(dnbinom(y,size=nu,mu=theta_star,log=TRUE))-2*log(nu+1)}}
+  opt = optim(c(nu_star),log_h,y=y,theta_star=theta_star,method="Brent",lower=0,upper=10*nu_star,control=list(fnscale=-1,maxit=1000,reltol=1e-10))$value
+  h_reduced = function(nu,y,theta_star,opt){exp(log_h(nu,y,theta_star)-opt)}
+  V_h_reduced = Vectorize(h_reduced,vectorize.args = "nu")
+  int = integrate(V_h_reduced,0,Inf,y=y,theta_star=theta_star,opt=opt,subdivisions = 1000, rel.tol = 1e-10)$value
+  log_numerator = opt+log(int)-2*log(1+theta_star)
+  a = dgamma(theta_star,s_n+1,t_n+phi,log=TRUE); ma = max(a); log_denominator = ma + log(mean(exp(a-ma)))
+  return(log_numerator-log_denominator)
+}
+```
+
+## 3.1 Task 1: Gibbs Sampler for Poisson Model and Negative Binomial Model
+You are going to analyze a dataset using both the Poisson and Negative binomial models. First, I will load the data.
+```{r}
+library(boot); data ("discoveries"); y = discoveries
+```
+Here, I will provide a skeleton of the sampling functions you are to use to get your output. Your task is to complete the functions and get 10000 draws from the Gibbs sampler for each model. Each line that is commented out needs to be replaced. Notice that I have combined multiple steps that are similar on single lines (separated by a semicolon) to save space. After getting your draws, make trace plots and acf plots of all of the output to make sure the output looks reasonable.
+
+```{r}
+sampler_poisson = function(y,N_samps=10000){
+  n = length(y); s_n = sum(y)
+  theta_curr = s_n/n; phi_curr = rgamma(1,2,(1+theta_curr))
+  theta_out = phi_out = rep(NA,N_samps)
+  for(i in 1:N_samps){
+    theta_curr = rgamma(1,s_n+1,n+1)
+    phi_curr = rgamma(1,2,(1+theta_curr))
+    theta_out[i] = theta_curr; phi_out[i] = phi_curr
+  }
+  return(list(theta=theta_out,phi=phi_out))
+}
+```
+
+```{r}
+out = sampler_poisson(y)
+theta_draws = out[['theta']]
+plot(theta_draws,pch=".")
+acf(theta_draws)
+phi_draws = out[['phi']]
+plot(log(phi_draws),pch=".")
+acf(phi_draws)
+```
+Looks relatively reasonable, note though the spread on the trace plot is kind of wide given the distance between the dots. Correlation isn't too great, but isn't that bad.(Theta) 
+I would say phi is about as reasonable even, tighter spread on the trace and a similar ACF plot to theta.
+
+```{r}
+sampler_negative_binomial = function(y,N_samps=10000){
+  n = length(y); s_n = sum(y)
+  theta_curr = s_n/n; phi_curr = rgamma(1,2,(1+theta_curr))
+  nu_curr = mean(y)^2/(var(y)-mean(y)); z_curr = rgamma(n,y+nu_curr,theta_curr+nu_curr)
+  t_n_curr = sum(z_curr); u_n_curr = sum(log(z_curr))
+  theta_out = phi_out = nu_out = t_n_out = u_n_out = rep(NA,N_samps)
+  for(i in 1:N_samps){
+    theta_curr = rgamma(1,s_n+1,t_n_curr+phi_curr)
+    phi_curr = rgamma(1,2,(1+theta_curr))
+    z_curr = rgamma(n,y+nu_curr,theta_curr+nu_curr)
+    t_n_curr = sum(z_curr)
+    u_n_curr = sum(log(z_curr))
+    nu_curr = draw_nu_fun(nu_curr,t_n_curr,u_n_curr,n)
+    theta_out[i] = theta_curr; phi_out[i] = phi_curr; nu_out[i] = nu_curr
+    t_n_out[i] = t_n_curr; u_n_out[i] = u_n_curr
+  }
+  return(list(theta=theta_out,phi=phi_out,nu=nu_out))
+}
+```
+
+```{r}
+out = sampler_negative_binomial(y)
+theta_draws = out[['theta']]
+phi_draws = out[['phi']]
+nu_draws = out[['nu']]
+plot(theta_draws,pch='.')
+acf(theta_draws)
+plot(log(phi_draws),pch=".")
+acf(phi_draws)
+plot(log(nu_draws),pch=".")
+acf(nu_draws)
+```
+theta and phi draws are relatively fine, however... EWWWW nu's draws are baddddd, heavy correlation too.
+
+## 3.2 Task 2: Posterior Analysis and Model Comparison
+For the Poisson model: plot the density of the $\theta$ samples, compute the posterior mean of $\theta$, and form a $95\%$ marginal posterior interval for $\theta$.<br>
+For the Negative-Binomial model: plot the density of the $\theta$ and $\nu$ samples, compute the posterior mean of $\theta$ and $\nu$, and form a $95\%$ marginal posterior intervals for $\theta$ and $\nu$.<br>
+For both models, use the appropriate Chib function from Section 2 or 3.0 to compute the log of the marginal of the data under each model.<br>
+Based on these outputs from your Bayesian analysis, which model do you think describes the data the best and why?
+```{r}
+out = sampler_poisson(y)
+theta_draws = out[['theta']]
+phi_draws = out[['phi']]
+chib_theta = chib_poisson_using_theta(y,theta_draws,phi_draws)
+chib_phi = chib_poisson_using_phi(y,theta_draws,phi_draws)
+plot(density(theta_draws))
+plot(density(phi_draws))
+quantile(theta_draws,c(0.025,0.975))
+quantile(phi_draws,c(0.025,0.975))
+```
+
+```{r}
+out = sampler_negative_binomial(y)
+theta_draws = out[['theta']]
+phi_draws = out[['phi']]
+nu_draws = out[['nu']]
+chib_neg = chib_negative_binomial(y,theta_draws,phi_draws,sum(nu_draws),sum(log(nu_draws)),nu_draws)
+plot(density(theta_draws))
+plot(density(phi_draws))
+plot(density(nu_draws))
+quantile(theta_draws,c(0.025,0.975))
+quantile(phi_draws,c(0.025,0.975))
+quantile(nu_draws,c(0.025,0.975))
+```
+I think something might be incorrect in my negative binomial, but the poisson seems to better describe our data here, based on the chib calculations.
+
+## 3.3 Task 3: Predictive Analysis and Model Scrutiny
+For the Poisson model: for each of the $\theta$ posterior samples, draw a random Poisson with mean $\theta$ (maybe a line like `pois_pred = rpois(length(theta),theta)`). Compare the distribution of these predictive draws to the emprical distribution from the data.<br>
+For the Negative-Binomial model: for each of the $(\theta,\nu)$ posterior samples, draw a random Negative-Binomial with mean $\theta$ and size $\nu$ (maybe a line like `negbinom_pred = rnbinom(length(theta),size=nu,mu=theta)`). Compare the distribution of these predictive draws to the emprical distribution from the data.<br>
+Based on this predictive analysis, do you prefer one model to the other and do you think that either model is sufficient for describing the data?
+
+<i>Hint:</i> It might be useful to copy the code for summarizing the discrete distribution on the non-negative integers from Lab 10.
+
+```{r}
+N_samp = 10000
+
+n = 30 
+theta_draw = rpois(length(theta_draws),theta_draws)
+pred_draw_1 = rpois(N_samp,theta_draw) #vectorization being used!
+percents1 = rep(NA,11)
+names(percents1) = c(0:10)
+for(i in 1:11){
+  percents1[i] = mean(pred_draw_1==(i-1))
+}
+percents1
+```
+bias theta to zero
+
+this is just for a code example)
+```{r}
+N_samp = 10000
+
+n = 30 
+theta_draw = rnbinom(length(theta_draws),size=nu_draws,mu=theta_draws)
+pred_draw_2 = rpois(N_samp,theta_draw) #vectorization being used!
+percents2 = rep(NA,11)
+names(percents2) = c(0:10)
+for(i in 1:11){
+  percents2[i] = mean(pred_draw_2==(i-1))
+}
+percents2
+```
+this is def not biased to zero. 
+## 3.4 Task 4: Repeat with a Different Dataset
+Repeat the sampling and sample checking from Task 1 as well as Tasks 2 and 3 using the data set given by the `R` code
+```{r}
+library(boot); data(fir); y = fir$count
+output = sampler_poisson(y)
+theta_draws = out[['theta']]
+plot(theta_draws,pch=".")
+acf(theta_draws)
+phi_draws = out[['phi']]
+plot(log(phi_draws),pch=".")
+acf(phi_draws)
+```
+```{r}
+out = sampler_negative_binomial(y)
+theta_draws = out[['theta']]
+phi_draws = out[['phi']]
+nu_draws = out[['nu']]
+plot(theta_draws,pch='.')
+acf(theta_draws)
+plot(log(phi_draws),pch=".")
+acf(phi_draws)
+plot(log(nu_draws),pch=".")
+acf(nu_draws)
+```
+
+```{r}
+out = sampler_poisson(y)
+theta_draws = out[['theta']]
+phi_draws = out[['phi']]
+chib_theta = chib_poisson_using_theta(y,theta_draws,phi_draws)
+chib_phi = chib_poisson_using_phi(y,theta_draws,phi_draws)
+plot(density(theta_draws))
+plot(density(phi_draws))
+quantile(theta_draws,c(0.025,0.975))
+quantile(phi_draws,c(0.025,0.975))
+```
+```{r}
+out = sampler_negative_binomial(y)
+theta_draws = out[['theta']]
+phi_draws = out[['phi']]
+nu_draws = out[['nu']]
+chib_neg = chib_negative_binomial(y,theta_draws,phi_draws,sum(nu_draws),sum(log(nu_draws)),nu_draws)
+plot(density(theta_draws))
+plot(density(phi_draws))
+plot(density(nu_draws))
+quantile(theta_draws,c(0.025,0.975))
+quantile(phi_draws,c(0.025,0.975))
+quantile(nu_draws,c(0.025,0.975))
+```
+
+```{r}
+N_samp = 10000
+
+n = 30 
+theta_draw = rnbinom(length(theta_draws),size=nu_draws,mu=theta_draws)
+pred_draw_2 = rpois(N_samp,theta_draw) #vectorization being used!
+percents2 = rep(NA,11)
+names(percents2) = c(0:10)
+for(i in 1:11){
+  percents2[i] = mean(pred_draw_2==(i-1))
+}
+percents2
+```
+
+```{r}
+N_samp = 10000
+
+n = 30 
+theta_draw = rnbinom(length(theta_draws),size=nu_draws,mu=theta_draws)
+pred_draw_2 = rpois(N_samp,theta_draw) #vectorization being used!
+percents2 = rep(NA,11)
+names(percents2) = c(0:10)
+for(i in 1:11){
+  percents2[i] = mean(pred_draw_2==(i-1))
+}
+percents2
+```
+

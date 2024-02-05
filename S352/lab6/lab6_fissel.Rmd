@@ -1,0 +1,180 @@
+---
+title: 'Lab 6: Confidence intervals from inverting the LRT'
+author: "MorganFissel 2000498470"
+date: "2/19/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(boot)
+library(LaplacesDemon)
+library(GeneralizedHyperbolic)
+```
+
+# 0. Structure of this Lab
+Section 1 explains obtaining confidence intervals from inverting tests. I try to explain it in general terms, but using familiar notation and tests whose rejection regions are defined by univariate statistics. Not all tests are like this, tests can be very generic, but this is the most common kind of test.
+
+Section 2 provides some `R` code for computing the log-likelihood evaluate at the MLE for the two likelihood ratio tests that you will be inverting to form confidence intervals for this lab. These are a confidence interval for the difference in Bernoulli means and a confidence interval for the rate from gamma distributed data.
+
+Section 3 lays out your tasks. Section 3.0 will develop the $\lambda$ function necessary for using `uniroot` to find the confidence interval for comparing Bernoulli means.
+
+For turning in the lab you must make the following modifications to this file.
+
+1. Change the author field in the preamble above to your name followed by a space and then your IUID#  (all together in quotes so it is a string).
+
+2. Rename the file by putting your last name in the file name. For instance, I would call my solution file `lab5_womack.Rmd`
+
+3. DO NOT MODIFY Sections 0, 1, 2, and 3.0. Where there are tasks that require you to write an `R` chunk, do NOT delete the instructions, just place your chunk after the instructions for the task. Where there are questions that you need to answer, do NOT delete the questions, simply place your answer to a question in a new paragraph after the question is posed. If a task asks you to repeat procedures from previous tasks, you do not need to copy the intructions or questions from previous tasks, but you must repeat all of the procedures from the tasks completely and answer all of the questions in the new context. You can put all of your code for such a task into a single `R` chunk if doing so makes you happy.
+
+
+# 1. Confidence intervals from inverting tests
+We have a statistical testing procedure at level $\alpha$ where rejection of the null is determined by a test statistic $\lambda$ being too large, $\lambda>c$ for some cutoff $c$. The null is $H_0:\theta=\theta_0$ and the alternative is $H_A:\theta\neq\theta_0$. The statistic $\lambda$ is a function of both the data $y_1,\ldots,y_n$ as well as the null hypothesis $\theta=\theta_0$. We usually think about tests in the following way. 
+
+1. First, we set the null hypothesis and so $\theta_0$ is fixed. 
+
+2. Second, we set the significance level and so $\alpha$ is fixed. 
+
+3. Third, we deterimine the test statistics $\lambda$. We have to know the distribution of $\lambda$ under the null hypothesis ($\lambda$ must be a pivot when we know $\theta=\theta_0$). 
+
+4. Fourth, we determine the cutoff $c$ using the distribution for $\lambda$. In particular, we have an implicit definition of $c$ given by
+\[
+P(\lambda\leq c;\theta=\theta_0) = 1-\alpha
+\]
+and we can compute the cutoff using the quantile function associated to the distribution of $\lambda$.
+
+5. We compute $\lambda$ for our observed data, and compare it to $c$. If our observed $\lambda$ is greater than the cutoff $c$ then we reject the null in favor of the alternative. Otherwise, we fail to reject the null.
+
+When thinking about performing the test, we are fixing the null and comparing the varying data to it. Values of the data that are not consistent enough with the null cause us to reject our belief in the null. When we think about confidence intervals, we want to go the other way around. We want to think about varying the null hypothesis and keeping our data fixed. Values of the null that are not consistent enough with the observed data are rejected as being plausible values for the parameters describing the data.
+
+This is what we mean by inverting the test to form the confidence interval. We treat $\lambda$ like a function of the null hypothesis $\lambda=\lambda(\theta_0)$ and find the values of $\theta_0$ that provide $\lambda(\theta_0)\leq c$. These are the values of $\theta_0$ that are consistent enough with the data that if we assumed them to be true we would not reject them having generated the data.
+
+
+
+# 2. Some MLE function to use
+The first comparison we want to make is one where we are comparing the probability of success for two set of Bernoulli trials $X_1,\ldots,X_m$ and $Y_1,\ldots,Y_n$. The probabilities of success are $\theta_X$ and $\theta_Y$. The quantity we want to get an interval for is $\delta=\theta_X-\theta_Y$. The null hypothesis is thus $\delta=\delta_0$. Under the null the value of $\theta_Y$ is constrained to be in $(0,1)\cap (-\delta_0,1-\delta_0)$.
+```{r}
+mle_bern_two_groups = function(x,y){
+  m = length(x)
+  n = length(y)
+  theta_x = mean(x)
+  theta_y = mean(y)
+  loglik = m*(theta_x*log(theta_x)+(1-theta_x)*log(1-theta_x)) + 
+           n*(theta_y*log(theta_y)+(1-theta_y)*log(1-theta_y))
+  return(list(theta=c(theta_x=theta_x,theta_y=theta_y),loglik=loglik))
+}
+mle_bern_two_groups_fixed = function(x,y,delta_0){
+  m = length(x)
+  n = length(y)
+  x_bar = mean(x)
+  y_bar = mean(y)
+  loglik_fun = function(theta_y){
+    theta_x = theta_y+delta_0
+    m*(x_bar*log(theta_x)+(1-x_bar)*log(1-theta_x)) + 
+    n*(y_bar*log(theta_y)+(1-y_bar)*log(1-theta_y))
+  }
+  options(warn = -1) # maybe some infinite/NaN warnings come up, suppressing them
+  out = optimize(loglik_fun,c(max(c(-delta_0,0)),min(c(1-delta_0,1))),maximum = TRUE,tol=1e-12)
+  options(warn = 0)
+  theta_y = out$maximum
+  loglik = out$objective
+  return(list(theta=c(delta_0=delta_0,theta_x = theta_y+delta_0, theta_y=theta_y),loglik=loglik))
+}
+```
+Let's test these out on a dataset.
+```{r}
+x = rbinom(252,1,.2)
+y = rbinom(576,1,.6)
+mle_bern_two_groups(x,y)
+mle_bern_two_groups_fixed(x,y,-.4)
+```
+
+Our second interval is for the rate from a gamma distribution. The two mle functions are below.
+```{r}
+mle_gamma = function(y){
+  control = list(fnscale=-1,maxit=1000,reltol=1e-12)
+  loglik_fun = function(theta_trans){
+    shape = exp(theta_trans[1])
+    rate = exp(theta_trans[2])
+    return(sum(dgamma(y,shape = shape, rate = rate,log = TRUE)))
+  }
+  opt = optim(c(0,0),loglik_fun,control=control)
+  shape = exp(opt$par[1])
+  rate = exp(opt$par[2])
+  loglik = opt$value
+  return(list(theta=c(shape=shape,rate=rate),loglik=loglik))
+}
+
+mle_gamma_fixed = function(y,rate_0){
+  control = list(fnscale=-1,maxit=1000,reltol=1e-12)
+  loglik_fun = function(theta_trans){
+    shape = exp(theta_trans)
+    return(sum(dgamma(y,shape = shape, rate = rate_0,log = TRUE)))
+  }
+  opt = optim(c(0),loglik_fun,method="BFGS",control=control)
+  shape = exp(opt$par)
+  loglik = opt$value
+  return(list(theta=c(shape=shape,rate_0=rate_0),loglik=loglik))
+}
+```
+Let's test these out on a dataset.
+```{r}
+z = rgamma(315,shape=346.5234,rate=73.232)
+mle_gamma(z)
+mle_gamma_fixed(z,70)
+```
+
+
+# 3. Tasks
+
+## 3.0 `lambda` function for comparing Bernoulli probabilities
+We need to get the LRT statistic minus the cutoff. We will work this the same we did for the second two examples in `LRT_and_interval_examples.Rmd` file.
+
+```{r}
+lambda_fun = function(delta_0,x,y,fit_HA,cutoff,conf_level){
+  if(abs(delta_0)>=1){return(Inf)}
+  if(missing(fit_HA)){
+    fit_HA = mle_bern_two_groups(x,y)
+  }
+  if(missing(cutoff)){
+    cutoff = qchisq(conf_level,df=1)
+  }
+  fit_H0 = mle_bern_two_groups_fixed(x,y,delta_0)
+  lambda = 2*fit_HA$loglik - 2*fit_H0$loglik
+  return(lambda-cutoff)
+}
+```
+
+
+## 3.1 
+Use `uniroot` to get a lower bound and upper bound for a $99\%$ confidence interval for $\delta=\theta_X-\theta_Y$. Remember that $\delta$ is between $-1$ and $1$. The the lower bound is between $-1$ and $\widehat{\delta}$. The upper bound is between $\widehat{\delta}$ and $1$. Use the data `x` and `y` that has already been generated.
+
+```{r}
+conf_level = 0.99
+cutoff = qchisq(0.99,df=1)
+fit_HA = mle_bern_two_groups(x,y)
+delta_hat = fit_HA$theta['theta_x'] - fit_HA$theta['theta_y']
+names(delta_hat) = NULL
+
+lb = uniroot(lambda_fun,c(-1,delta_hat),
+             x=x,y=y,fit_HA = fit_HA, cutoff=cutoff,
+             conf_level = conf_level)$root
+
+ub = uniroot(lambda_fun,c(delta_hat,1),
+             x=x,y=y,fit_HA = fit_HA, cutoff=cutoff,
+             conf_level = conf_level)$root
+
+print(delta_hat)
+print(c(lb,ub))
+```
+
+## 3.2 
+Write an analogous `lambda_fun` for the gamma distribuion rate.
+
+
+## 3.3
+Use `uniroot` to get a lower bound and upper bound for a $95\%$ confidence interval for the rate of the gamma distribution. Remember that the rate is positive. The the lower bound is between $0$ and $\widehat{rate}$. The upper bound is between $\widehat{rate}$ and $\infty$. Use the option `extendInt="upX"` when finding the upper bound. Use the data `z` that has already been generated.
+
+## 3.4
+Interpret your intervals from 3.1 and 3.3.
+

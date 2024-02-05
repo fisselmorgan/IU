@@ -1,0 +1,625 @@
+---
+title: 'Lab 7: Analyzing the UCBAdmissions Data'
+author: "Womack"
+date: "3/9/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 0. Structure of this Lab
+Section 1 discusses the four things we have done using likelihoods: compute the MLE, do the LRT, compute the AIC, and invert the LRT. We talk about this in the context of the `UCBAdmissions` data.
+
+Section 2 provides an `R` code template for writing one function `analyze_two_by_two_table` that will do the full likelihood based analysis of a $2\times 2$ table of data. We will try to take advantage of `R`'s scoping of variables so that we do not have to input too many things into sub-functions. It also includes the mle functions from `UCBAdmissions.Rmd` that we can take advantage of when doing this lab.
+
+Section 3 lays out your tasks. Section 3.0 will fill in some details at the beginning of the function to make it work like the function `chisq.test`. You will be responsible for adding lines that do things like compute the MLEs, the p-value, the AIC, and the confidence interval.
+
+For turning in the lab you must make the following modifications to this file.
+
+1. Change the author field in the preamble above to your name followed by a space and then your IUID#  (all together in quotes so it is a string).
+
+2. Rename the file by putting your last name in the file name. For instance, I would call my solution file `lab7_womack.Rmd`
+
+3. DO NOT MODIFY Sections 0, 1, 2, and 3.0. Where there are tasks that require you to write an `R` chunk, do NOT delete the instructions, just place your chunk after the instructions for the task. Where there are questions that you need to answer, do NOT delete the questions, simply place your answer to a question in a new paragraph after the question is posed. If a task asks you to repeat procedures from previous tasks, you do not need to copy the intructions or questions from previous tasks, but you must repeat all of the procedures from the tasks completely and answer all of the questions in the new context. You can put all of your code for such a task into a single `R` chunk if doing so makes you happy.
+
+
+# 1. Some likelihood things for the test of independence
+Just to refresh from the `UCBAdmissions.Rmd` file. The full model has three parameter and the independence model has two parameters. The MLE functions for the full and independence model are
+```{r}
+mle_two_by_two_table_full = function(N){
+  # N is a 2x2 table of counts
+  # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+  joint_probs = N/sum(N)
+  row_probs = rowSums(joint_probs)
+  col_probs = colSums(joint_probs)
+  log_odds_ratio = log(joint_probs[1,1])-log(joint_probs[1,2])+
+    log(joint_probs[2,2])-log(joint_probs[2,1])
+  theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+  loglik = sum(N*log(joint_probs))
+  return(list(theta=theta,loglik=loglik))
+}
+
+mle_two_by_two_table_independent = function(N){
+  # N is a 2x2 table of counts
+  # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+  row_probs = rowSums(N)/sum(N)
+  col_probs = colSums(N)/sum(N)
+  joint_probs = outer(row_probs,col_probs,"*")
+  log_odds_ratio = 0
+  theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+  loglik = sum(N*log(joint_probs))
+  return(list(theta=theta,loglik=loglik))
+}
+```
+An interesting parameter is the log odds-ratio. If we let $\mathbf{\pi}$ be $(\pi_{1,1},\pi_{1,2},\pi_{2,1},\pi_{2,2})$, then the log odds-ratio is given by
+\[
+\theta = \log\left(
+\frac{
+\pi_{1,1}\pi_{2,2}
+}{
+\pi_{1,2}\pi_{2,1}
+}
+\right).
+\]
+Under the alternative of the full model, $\theta$ is a free parameter. Under the null of indpendence, $\theta=0$. Forming a confidence interval for $\theta$ is important for thinking about independence. The further the confidence interval is from $0$, the more dependent the two variables are. We can compute the MLE for a fixed value of the log odd-ratio using the function.
+```{r}
+mle_two_by_two_table_fixed_log_odds_ratio = function(N,log_odds_ratio_0){
+  # N is a 2x2 table of counts
+  # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+  f = function(theta_trans){
+    col_probs = 1/(1+exp(c(-1,1)*theta_trans[1]))
+    joint_probs = matrix(NA,2,2)
+    col_1_cond_probs = 1/(1+exp(c(-1,1)*theta_trans[2]))
+    joint_probs[,1] = col_probs[1]*col_1_cond_probs
+    col_2_cond_probs = c(NA,NA)
+    col_2_cond_probs[1] = col_1_cond_probs[1]/
+      (col_1_cond_probs[2]*exp(log_odds_ratio_0)+col_1_cond_probs[1])
+    col_2_cond_probs[2] = 1-col_2_cond_probs[1]
+    joint_probs[,2] = col_probs[2]*col_2_cond_probs
+    loglik = sum(N*log(joint_probs))
+  }
+  control = list(fnscale=-1,maxit=1000,reltol=1e-12)
+  opt = optim(c(0,0),f,control=control)
+  opt_trans = opt$par
+  col_probs = 1/(1+exp(c(-1,1)*opt_trans[1]))
+  joint_probs = matrix(NA,2,2)
+  col_1_cond_probs = 1/(1+exp(c(-1,1)*opt_trans[2]))
+  joint_probs[,1] = col_probs[1]*col_1_cond_probs
+  col_2_cond_probs = c(NA,NA)
+  col_2_cond_probs[1] = col_1_cond_probs[1]/
+    (col_1_cond_probs[2]*exp(log_odds_ratio_0)+col_1_cond_probs[1])
+  col_2_cond_probs[2] = 1-col_2_cond_probs[1]
+  joint_probs[,2] = col_probs[2]*col_2_cond_probs
+  row_probs = rowSums(joint_probs)
+  col_probs = colSums(joint_probs)
+  log_odds_ratio = log_odds_ratio_0
+  theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+  loglik = opt$value
+  return(list(theta=theta,loglik=loglik))
+}
+```
+If you are so inclined, you are welcome to tell me why this code computes the right probabilities for two points of extra credit. I would like such an explanation turned in by 10/23.
+
+# 2. Function Skeleton
+To compute the MLEs, log-likelihoods, LRT, p-values, AICs, and confidence interval, we can put everything into a single function. This function will need to take in the data and the significance level (or confidence level). To keep things nice and contained, we should include the MLE functions we have already written in the function (so that it does not need to call any external functions). 
+
+I will also put in the skeleton for the function lines for storing things we should use. These include variables that are defined within the scope of the function. These variables will be use within the scope of the function without needing to pass them to other functions. In Task 3.0, we will pre-process the data to make sure we get a table of data to analyze.
+```{r}
+analyze_two_by_two_table = function(x,y=NULL,signif_level=0.01){
+  ##################
+  ## For Task 3.0 ##
+  ##################
+  # if x is not a matrix, it treats x and y as factor variables
+  # if statement to be replaced later
+  if(class(x)=="matrix"){
+    N = NA
+  }else{
+    N = NA
+  }
+  N = matrix(c(12,14,16,18) ,2,2) # totally arbitrary, will be replaced later
+  ##################
+  ## End Task 3.0 ##
+  ##################
+  
+  #################################
+  ## Start Functions for fitting ##
+  #################################
+  # now we input the MLE functions
+  # this is just copying and pasting from above
+  mle_two_by_two_table_full = function(N){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    joint_probs = N/sum(N)
+    row_probs = rowSums(joint_probs)
+    col_probs = colSums(joint_probs)
+    log_odds_ratio = log(joint_probs[1,1])-log(joint_probs[1,2])+
+      log(joint_probs[2,2])-log(joint_probs[2,1])
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = sum(N*log(joint_probs))
+    return(list(theta=theta,loglik=loglik))
+  }
+  mle_two_by_two_table_independent = function(N){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    row_probs = rowSums(N)/sum(N)
+    col_probs = colSums(N)/sum(N)
+    joint_probs = outer(row_probs,col_probs,"*")
+    log_odds_ratio = 0
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = sum(N*log(joint_probs))
+    return(list(theta=theta,loglik=loglik))
+  }
+  mle_two_by_two_table_fixed_log_odds_ratio = function(N,log_odds_ratio_0){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    f = function(theta_trans){
+      col_probs = 1/(1+exp(c(-1,1)*theta_trans[1]))
+      joint_probs = matrix(NA,2,2)
+      col_1_cond_probs = 1/(1+exp(c(-1,1)*theta_trans[2]))
+      joint_probs[,1] = col_probs[1]*col_1_cond_probs
+      col_2_cond_probs = c(NA,NA)
+      col_2_cond_probs[1] = col_1_cond_probs[1]/
+        (col_1_cond_probs[2]*exp(log_odds_ratio_0)+col_1_cond_probs[1])
+      col_2_cond_probs[2] = 1-col_2_cond_probs[1]
+      joint_probs[,2] = col_probs[2]*col_2_cond_probs
+      joint_probs[,2] = col_probs[2]*col_2_cond_probs
+      loglik = sum(N*log(joint_probs))
+    }
+    control = list(fnscale=-1,maxit=1000,reltol=1e-12)
+    opt = optim(c(0,0),f,control=control)
+    opt_trans = opt$par
+    col_probs = 1/(1+exp(c(-1,1)*opt_trans[1]))
+    joint_probs = matrix(NA,2,2)
+    col_1_cond_probs = 1/(1+exp(c(-1,1)*opt_trans[2]))
+    joint_probs[,1] = col_probs[1]*col_1_cond_probs
+    col_2_cond_probs = c(NA,NA)
+    col_2_cond_probs[1] = col_1_cond_probs[1]/
+      (col_1_cond_probs[2]*exp(log_odds_ratio_0)+col_1_cond_probs[1])
+    col_2_cond_probs[2] = 1-col_2_cond_probs[1]
+    joint_probs[,2] = col_probs[2]*col_2_cond_probs
+    row_probs = rowSums(joint_probs)
+    col_probs = colSums(joint_probs)
+    log_odds_ratio = log_odds_ratio_0
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = opt$value
+    return(list(theta=theta,loglik=loglik))
+  }
+  ###############################
+  ## End Functions for fitting ##
+  ###############################
+  
+  
+  # now we start doing new things
+  # for now, we are going to use meaningless placeholders
+  # you will replace these placeholders later
+  
+  ##################
+  ## For Task 3.1 ##
+  ##################
+  
+  # replace with actual fit under HA
+  fit_HA = list(theta = list(joint_probs = matrix(.25,2,2),
+                    row_probs = rep(.5,2),
+                    col_probs = rep(.5,2),
+                    log_odds_ratio = 0),
+                loglik = 0)
+  # replace with actual fit under H0
+  fit_H0 = list(theta = list(joint_probs = matrix(.25,2,2),
+                    row_probs = rep(.5,2),
+                    col_probs = rep(.5,2),
+                    log_odds_ratio = 0),
+                loglik = 0)
+  # replace with actual LRT stat
+  lambda = 0
+  cutoff = qchisq(1 - signif_level,1)
+  decision = ifelse(lambda>cutoff,"Reject H_0: Independence","Fail to reject H_0: Independence")
+  AIC_H0_minus_HA = lambda-2
+  p_val = pchisq(1,1)
+  ##################
+  ## End Task 3.1 ##
+  ##################
+  
+  ##################
+  ## For Task 3.2 ##
+  ##################
+  lambda_fun = function(log_odds_ratio_0){
+    fit_H0 = mle_two_by_two_table_fixed_log_odds_ratio(N,log_odds_ratio_0)
+    return(0)
+  }
+  ##################
+  ## End Task 3.2 ##
+  ##################
+  
+  ##################
+  ## For Task 3.3 ##
+  ##################
+  lb = -1
+  ub = 1
+  ##################
+  ## End Task 3.3 ##
+  ##################
+  
+  return(list(
+    fit_HA=fit_HA,
+    fit_H0=fit_H0,
+    lambda=lambda,
+    AIC_H0_minus_HA=AIC_H0_minus_HA,
+    cutoff=cutoff,
+    decision=decision,
+    p_val=p_val,
+    signif_level=signif_level,
+    conf_level=1-signif_level,
+    conf_int=c(lb,ub)
+  ))
+}
+```
+
+# 3. Tasks
+
+## 3.0  Adding check for whether the input is a table or factor vectors
+We replace the first few lines of the function so that we make the table if 
+```{r}
+analyze_two_by_two_table = function(x,y=NULL,signif_level=0.01){
+  ##################
+  ## For Task 3.0 ##
+  ##################
+  # if x is not a matrix, it treats x and y as factor variables
+  
+  if("matrix" %in% class(x)){
+    N = x
+  }else if("table" %in% class(x)){
+    N = matrix(x,2,2)
+    dimnames(N) = dimnames(x)
+  }else{
+    N = table(x,y)
+  }
+  
+  ##################
+  ## End Task 3.0 ##
+  ##################
+  
+  #################################
+  ## Start Functions for fitting ##
+  #################################
+  # now we input the MLE functions
+  # this is just copying and pasting from above
+  mle_two_by_two_table_full = function(N){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    joint_probs = N/sum(N)
+    row_probs = rowSums(joint_probs)
+    col_probs = colSums(joint_probs)
+    log_odds_ratio = log(joint_probs[1,1])-log(joint_probs[1,2])+
+      log(joint_probs[2,2])-log(joint_probs[2,1])
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = sum(N*log(joint_probs))
+    return(list(theta=theta,loglik=loglik))
+  }
+  mle_two_by_two_table_independent = function(N){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    row_probs = rowSums(N)/sum(N)
+    col_probs = colSums(N)/sum(N)
+    joint_probs = outer(row_probs,col_probs,"*")
+    log_odds_ratio = 0
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = sum(N*log(joint_probs))
+    return(list(theta=theta,loglik=loglik))
+  }
+  mle_two_by_two_table_fixed_log_odds_ratio = function(N,log_odds_ratio_0){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    f = function(theta_trans){
+      col_probs = 1/(1+exp(c(-1,1)*theta_trans[1]))
+      joint_probs = matrix(NA,2,2)
+      col_1_cond_probs = 1/(1+exp(c(-1,1)*theta_trans[2]))
+      joint_probs[,1] = col_probs[1]*col_1_cond_probs
+      col_2_cond_probs = c(NA,NA)
+      col_2_cond_probs[1] = col_1_cond_probs[1]/
+        (col_1_cond_probs[2]*exp(log_odds_ratio_0)+col_1_cond_probs[1])
+      col_2_cond_probs[2] = 1-col_2_cond_probs[1]
+      joint_probs[,2] = col_probs[2]*col_2_cond_probs
+      joint_probs[,2] = col_probs[2]*col_2_cond_probs
+      loglik = sum(N*log(joint_probs))
+    }
+    control = list(fnscale=-1,maxit=1000,reltol=1e-12)
+    opt = optim(c(0,0),f,control=control)
+    opt_trans = opt$par
+    col_probs = 1/(1+exp(c(-1,1)*opt_trans[1]))
+    joint_probs = matrix(NA,2,2)
+    col_1_cond_probs = 1/(1+exp(c(-1,1)*opt_trans[2]))
+    joint_probs[,1] = col_probs[1]*col_1_cond_probs
+    col_2_cond_probs = c(NA,NA)
+    col_2_cond_probs[1] = col_1_cond_probs[1]/
+      (col_1_cond_probs[2]*exp(log_odds_ratio_0)+col_1_cond_probs[1])
+    col_2_cond_probs[2] = 1-col_2_cond_probs[1]
+    joint_probs[,2] = col_probs[2]*col_2_cond_probs
+    row_probs = rowSums(joint_probs)
+    col_probs = colSums(joint_probs)
+    log_odds_ratio = log_odds_ratio_0
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = opt$value
+    return(list(theta=theta,loglik=loglik))
+  }
+  ###############################
+  ## End Functions for fitting ##
+  ###############################
+  
+  
+  # now we start doing new things
+  # for now, we are going to use meaningless placeholders
+  # you will replace these placeholders later
+  
+  ##################
+  ## For Task 3.1 ##
+  ##################
+  
+  # replace with actual fit under HA
+  fit_HA = list(theta = list(joint_probs = matrix(.25,2,2),
+                    row_probs = rep(.5,2),
+                    col_probs = rep(.5,2),
+                    log_odds_ratio = 0),
+                loglik = 0)
+  # replace with actual fit under H0
+  fit_H0 = list(theta = list(joint_probs = matrix(.25,2,2),
+                    row_probs = rep(.5,2),
+                    col_probs = rep(.5,2),
+                    log_odds_ratio = 0),
+                loglik = 0)
+  # replace with actual LRT stat
+  lambda = 0
+  cutoff = qchisq(1 - signif_level,1)
+  decision = ifelse(lambda>cutoff,"Reject H_0: Independence","Fail to reject H_0: Independence")
+  AIC_H0_minus_HA = lambda-2
+  p_val = pchisq(1,1)
+  ##################
+  ## End Task 3.1 ##
+  ##################
+  
+  ##################
+  ## For Task 3.2 ##
+  ##################
+  lambda_fun = function(log_odds_ratio_0){
+    fit_H0 = mle_two_by_two_table_fixed_log_odds_ratio(N,log_odds_ratio_0)
+    return(0)
+  }
+  ##################
+  ## End Task 3.2 ##
+  ##################
+  
+  ##################
+  ## For Task 3.3 ##
+  ##################
+  lb = -1
+  ub = 1
+  ##################
+  ## End Task 3.3 ##
+  ##################
+  
+  return(list(
+    fit_HA=fit_HA,
+    fit_H0=fit_H0,
+    lambda=lambda,
+    AIC_H0_minus_HA=AIC_H0_minus_HA,
+    cutoff=cutoff,
+    decision=decision,
+    p_val=p_val,
+    signif_level=signif_level,
+    conf_level=1-signif_level,
+    conf_int=c(lb,ub)
+  ))
+}
+
+
+```
+
+## 3.1 Getting MLEs, asymptotic p-value, LRT decision, and AIC
+Copy the function from 3.0 here and replace the appropriate lines of the function so that the fit under the null, the fit under the alternative, the p-value, the LRT decision, and the AIC are computed.
+
+```{r}
+analyze_two_by_two_table = function(x,y=NULL,signif_level=0.01){
+  ##################
+  ## For Task 3.0 ##
+  ##################
+  # if x is not a matrix, it treats x and y as factor variables
+  
+  if("matrix" %in% class(x)){
+    N = x
+  }else if("table" %in% class(x)){
+    N = matrix(x,2,2)
+    dimnames(N) = dimnames(x)
+  }else{
+    N = table(x,y)
+  }
+  
+  ##################
+  ## End Task 3.0 ##
+  ##################
+  
+  #################################
+  ## Start Functions for fitting ##
+  #################################
+  # now we input the MLE functions
+  # this is just copying and pasting from above
+  mle_two_by_two_table_full = function(N){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    joint_probs = N/sum(N)
+    row_probs = rowSums(joint_probs)
+    col_probs = colSums(joint_probs)
+    log_odds_ratio = log(joint_probs[1,1])-log(joint_probs[1,2])+
+      log(joint_probs[2,2])-log(joint_probs[2,1])
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = sum(N*log(joint_probs))
+    return(list(theta=theta,loglik=loglik))
+  }
+  mle_two_by_two_table_independent = function(N){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    row_probs = rowSums(N)/sum(N)
+    col_probs = colSums(N)/sum(N)
+    joint_probs = outer(row_probs,col_probs,"*")
+    log_odds_ratio = 0
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = sum(N*log(joint_probs))
+    return(list(theta=theta,loglik=loglik))
+  }
+  mle_two_by_two_table_fixed_log_odds_ratio = function(N,log_odds_ratio_0){
+    # N is a 2x2 table of counts
+    # log_odds_ratio are for log(p_{11}p_{22}/(p_{12}p_{21}))
+    f = function(theta_trans){
+      col_probs = 1/(1+exp(c(-1,1)*theta_trans[1]))
+      joint_probs = matrix(NA,2,2)
+      col_1_cond_probs = 1/(1+exp(c(-1,1)*theta_trans[2]))
+      joint_probs[,1] = col_probs[1]*col_1_cond_probs
+      col_2_cond_probs = c(NA,NA)
+      col_2_cond_probs[1] = col_1_cond_probs[1]/
+        (col_1_cond_probs[2]*exp(log_odds_ratio_0)+col_1_cond_probs[1])
+      col_2_cond_probs[2] = 1-col_2_cond_probs[1]
+      joint_probs[,2] = col_probs[2]*col_2_cond_probs
+      joint_probs[,2] = col_probs[2]*col_2_cond_probs
+      loglik = sum(N*log(joint_probs))
+    }
+    control = list(fnscale=-1,maxit=1000,reltol=1e-12)
+    opt = optim(c(0,0),f,control=control)
+    opt_trans = opt$par
+    col_probs = 1/(1+exp(c(-1,1)*opt_trans[1]))
+    joint_probs = matrix(NA,2,2)
+    col_1_cond_probs = 1/(1+exp(c(-1,1)*opt_trans[2]))
+    joint_probs[,1] = col_probs[1]*col_1_cond_probs
+    col_2_cond_probs = c(NA,NA)
+    col_2_cond_probs[1] = col_1_cond_probs[1]/
+      (col_1_cond_probs[2]*exp(log_odds_ratio_0)+col_1_cond_probs[1])
+    col_2_cond_probs[2] = 1-col_2_cond_probs[1]
+    joint_probs[,2] = col_probs[2]*col_2_cond_probs
+    row_probs = rowSums(joint_probs)
+    col_probs = colSums(joint_probs)
+    log_odds_ratio = log_odds_ratio_0
+    theta = list(joint_probs = joint_probs,
+               row_probs = row_probs,
+               col_probs = col_probs,
+               log_odds_ratio = log_odds_ratio)
+    loglik = opt$value
+    return(list(theta=theta,loglik=loglik))
+  }
+  ###############################
+  ## End Functions for fitting ##
+  ###############################
+  
+  
+  # now we start doing new things
+  # for now, we are going to use meaningless placeholders
+  # you will replace these placeholders later
+  
+  ##################
+  ## For Task 3.1 ##
+  ##################
+  
+  # replace with actual fit under HA
+  fit_HA = mle_two_by_two_table_full(N)
+  # replace with actual fit under H0
+  fit_H0 = mle_two_by_two_table_independent(N)
+  # replace with actual LRT stat
+  lambda = 2*(fit_HA$loglik - fit_H0$loglik)
+  cutoff = qchisq(1 - signif_level,1)
+  decision = ifelse(lambda>cutoff,"Reject H_0: Independence","Fail to reject H_0: Independence")
+  AIC_H0_minus_HA = lambda-2
+  p_val = pchisq(lambda,1,lower.tail = FALSE)
+  ##################
+  ## End Task 3.1 ##
+  ##################
+  
+  ##################
+  ## For Task 3.2 ##
+  ##################
+  lambda_fun = function(log_odds_ratio_0){
+    fit_H0 = mle_two_by_two_table_fixed_log_odds_ratio(N,log_odds_ratio_0)
+    return(0)
+  }
+  ##################
+  ## End Task 3.2 ##
+  ##################
+  
+  ##################
+  ## For Task 3.3 ##
+  ##################
+  lb = -1
+  ub = 1
+  ##################
+  ## End Task 3.3 ##
+  ##################
+  
+  return(list(
+    fit_HA=fit_HA,
+    fit_H0=fit_H0,
+    lambda=lambda,
+    AIC_H0_minus_HA=AIC_H0_minus_HA,
+    cutoff=cutoff,
+    decision=decision,
+    p_val=p_val,
+    signif_level=signif_level,
+    conf_level=1-signif_level,
+    conf_int=c(lb,ub)
+  ))
+}
+
+
+```
+
+## 3.2 Writing the `lambda_fun` function for the log odds-ratio
+Copy the function from 3.1 here and replace the appropriate lines of the function to define the `lambda_fun` function that will be used to compute the confidence interval.
+
+## 3.3 Getting lower and upper bounds for the log odds-ratio confidence interval
+Copy the function from 3.2 here and replace the appropriate lines of the function to compute the lower and upper bound of the confidence interval for the log odds-ratio. Let $\widehat{\theta}$ represent the MLE for the log odds-ratio under the full model. Use $(\widehat{\theta}-1,\widehat{\theta})$ for the search interval for the lower bound using the option `extendInt="downX"`. Use $(\widehat{\theta},\widehat{\theta}+1)$ for the search interval for the upper bound using the option `extendInt="upX"`. 
+
+## 3.4 Analyzing the aggregate UCBAdmissions Data
+Load the `UCBAdmissions` data and use `apply` to get a two by two table of counts for admission by gender summed over department. Use the function you completed in 3.3 to analyze this data with a significance level of $0.05$. Interpret the p-value, the result of the LRT, the AIC, and the confidence interval for the log odds-ratio.
+
+```{r}
+data("UCBAdmissions")
+count_matrix = matrix(0,2,2)
+rownames = dimnames(UCB_agg_over_dept)$Admit
+colnames = dimnames(UCB_agg_over_dept)$Gender
+
+for(i in 1:6){
+  count_matrix = count_matrix + UCBAdmissions[,,i]
+}
+count_matrix
+
+apply(UCBAdmissions,c('Admit','Gender'),sum)
+```

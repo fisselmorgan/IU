@@ -1,0 +1,49 @@
+pu
+right, 90
+fd, 100
+left, 90
+pd
+circle, 50,360
+pu
+goto, 0,-100
+fd, 50
+pd
+circle, 50,360
+pu
+circle, 50,330
+left, 30
+right, 90
+fd, 50
+left, 90
+pd
+circle, 50,360
+pu
+back, 50
+pd
+circle, 50,360
+pu
+goto,-50,-100
+pd
+circle, 50,360
+pu
+circle, 50,150
+left, 120
+fd, 50
+left, 90 
+pd
+circle, 50,360
+pu
+circle, 50,90
+right, 180
+fd, 50
+left, 90
+pd
+circle, 50,360
+pu
+goto, 0,0
+right, 90
+fd, 150
+left, 90
+pd
+circle, 100,360
+pu

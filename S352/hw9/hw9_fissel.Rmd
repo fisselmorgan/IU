@@ -1,0 +1,105 @@
+---
+title: "hw9"
+author: "Morgan Fissel"
+date: "4/1/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Pre question 2
+
+```{r}
+d_u_given_w = function(u,w=1){
+  #u is a vector of positive values (0 is okay because the density is 0 at 0).
+  # w is a positive scalar
+  
+  #checking u
+  if(!is.numeric(u)) stop("u is not numeric.")
+  if(min(u)<0) stop("some u values are negative, u must be non-negative.")
+  
+  #checking w
+  if(!is.numeric(w)) stop("w is not a numeric.")
+  if(length(w)>1) stop("length(w)>1.")
+  if(w<=0) stop("w<=0, w must be postive.")
+  
+  #defining the function up to proportion, using scoping to not have to input w
+  f = function(u){
+    u^2/(1+u)^3*exp(-u*w)
+  }
+  #getting normalizing constant
+  NC = integrate(f,0,Inf,subdivisions=1000, rel.tol=1e-8)$value
+  
+  #returning the density at the values of u
+  return(f(u)/NC)
+}
+
+d_x_given_w = function(x,w=1){
+  #x is a vector of positive values (0 is okay because the density is finite at 0).
+  #w is a positive scalar
+  
+  #checking x
+  if(!is.numeric(x)) stop("x is not numeric.")
+  if(min(x)<0) stop("some x values are negative, x must be non-negative.")
+  
+  #checking w
+  if(!is.numeric(w)) stop("w is not a numeric.")
+  if(length(w)>1) stop("length(w)>1.")
+  if(w<=0) stop("w<=0, w must be postive.")
+  
+  #defining the function up to proportion, using scoping to not have to input w 
+  f = function(x){
+    x^2/(w+x)^3*exp(-x)
+  }
+  
+  #getting normalizing constant
+  NC = integrate(f,0,Inf,subdivisions=1000, rel.tol=1e-8)$value
+  
+  #returning the density at the values of x
+  return(f(x)/NC)
+}
+```
+
+Question 2
+a) write the gibbs sampler
+```{r}
+
+gibbs_fun = function(N_draws,w=1,u0=1/w){
+  
+  u_curr = u0
+  x_curr = NA
+  
+  x_out = u_out = rep(NA,N_draws)
+  for(i in 1:N_draws){
+    x_curr = rexp(1,u_curr+1)
+    u_curr = rexp(1,x_curr+1)
+    x_out[i] = x_curr
+    u_out[i] = u_curr
+  }
+  x_curr
+  u_curr
+  
+  plot(x_out,u_out)
+  plot(log(x_out),log(u_out))
+  plot(log(x_out),type="l")
+  plot(log(u_out),type="l")
+  acf(x_out)
+  acf(u_out)
+}
+```
+b) 
+```{r}
+gibbs_fun(10000,w=2,u0=0.5)
+```
+Looking at the scatter plot of x_out vs. u_out we have a pretty well defined cluster for the log, the normal scatter plot doesn't really tell us too much here. With most of our data in the Domain from -2,2 and range -2,2. I am not sure what else to say about this, the log works better. 
+c) Comment on the ACFs 
+Looks like after about 3 samples we have nearly no correlation for both the x and u, and after 5 we have essentially 0, so we can reasonably take anywhere between 3 to 5 samples to get a low low correlation between the x and u.
+d)Comment on the trace plots.
+Both the trace plots for x and u have a central line that can be drawn through them somewhere around -1. U shows a little difference in height but not notably. 
+e) 
+```{r}
+plot(d_u_given_w(u=0,w=1),d_x_given_w(x=0,w=1)) 
+```
+I am not sure, what I need to be doing here. I'll shoot you an email, in the AM. 

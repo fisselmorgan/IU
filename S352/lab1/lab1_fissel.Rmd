@@ -1,0 +1,443 @@
+---
+title: 'Lab 1: The Non-parametric Bootstrap in R'
+author: "Morgan Fissel 2000498470"
+date: "01/18/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(DiagrammeR)
+library(boot)
+```
+
+Before doing this lab, make sure you have the `boot` and `DiagrammeR` packages installed. I will use `DiagrammeR` to make some pictures in this lab. There is no need for you to worry about learning to use `DiagrammeR`, but you do need to have it installed.
+
+# 0. Structure of this Lab
+Section 1 explains the underlying intuition and logic behind the bootstrap.
+
+Section 2 provides some `R` code for performing the bootstrap. Instead of writing our own code, we will use the `boot` package. After getting everything set up, we will use the bootstrap to estimate bias of an estimator.
+
+Section 3 lays out your tasks. Section 3.0 will discuss confidence interval construction using the bootstrap. We will talk specifically about the pivot interval, which uses bias correction. There are other intervals that we can get, but they are more complicated to discuss theoretically.
+
+For turning in the lab you must make the following modifications to this file.
+
+1. Change the author field in the preamble above to your name followed by a space and then your IUID#  (all together in quotes so it is a string).
+
+2. Rename the file by putting your last name in the file name. For instance, I would call my solution file `lab1_womack.Rmd`
+
+3. DO NOT MODIFY Sections 0, 1, 2, and 3.0. Where there are tasks that require you to write an `R` chunk, do NOT delete the instructions, just place your chunk after the instructions for the task. Where there are questions that you need to answer, do NOT delete the questions, simply place your answer to a question in a new paragraph after the question is posed. If a task asks you to repeat procedures from previous tasks, you do not need to copy the intructions or questions from previous tasks, but you must repeat all of the procedures from the tasks completely and answer all of the questions in the new context. You can put all of your code for such a task into a single `R` chunk if doing so makes you happy.
+
+
+# 1. An Introduction to the Bootstrap
+##  1.1 Returning to Sampling
+The bootstrap is a method for estimating the distribution of a sample estimator. We are going to focus on simple random sampling and defining quantities of interest and estimators using moments. Specifically, we will look at the `speed` data from the `amis` dataset from the `boot` package. We will use $\theta$ to represent our quantity of interest.
+
+Here is a picture of our data generation process with a fixed population.
+```{r pop_and_samp_diagram, echo=FALSE}
+grViz("
+digraph pop_and_samp {
+  graph [overlap = true, fontsize = 10,rankdir=LR]
+  node [shape = oval, fontname = Helvetica, height=3, width=1] 
+    Population
+  node [shape = oval, fontname = Helvetica, height=0.5, width=1]
+    Sample_1; Sample_2; Sample_3; Sample_4; Sample_5; Sample_6
+  Population -> {Sample_1,Sample_2,Sample_3,Sample_4,Sample_5,Sample_6}
+}
+")
+```
+
+The population has true value of the quantity of interest $\theta=\theta^*$ and each sample provides an estimate $\widehat{\theta}$. We are interested in the distribution of $\widehat{\theta}$. Here is an example using the `mean`.
+```{r speed_pop}
+data(amis)
+x = amis$speed
+plot(density(x),main="Population Density")
+
+theta_star = mean(x)
+
+n = 73
+N_samples = 10000
+theta_hat = rep(NA,N_samples)
+for(i in 1:N_samples){
+  y = sample(x,n,FALSE)
+  theta_hat[i] = mean(y)
+}
+plot(density(theta_hat),main="Density of Sample Estimator")
+lines(c(theta_star,theta_star),c(0,100),col="red")
+legend("topright",c("Estimator","Truth"),fill=c("black","red"))
+```
+
+In addition to plotting the density of the sample estimator, we can plot its empirical cdf function. The empirical cdf estimates the probability that random quantity is less than a value. In this context, it is given by
+\[
+\widehat{P}\left(\widehat{\theta}<t\right) = 
+\frac{1}{N_{samples}}\sum_{i=1}^{N_{samples}}I(\widehat{\theta}_i<t).
+\]
+The emprical cdf is non-decreasing from 0 on the left to 1 on the right. It is a step function because the number of samples is finite (and not just because we are only doing 10000 of the possible samples). It is computed in `R` using the `ecdf` function.
+```{r ecdf_theta_hat}
+plot(ecdf(theta_hat),main="Emprical CDF",xlab="t",ylab="Probability Below",cex=0,xlim=c(34,41))
+```
+
+We will use the emprical cdf to visualize the similarities between distributions. It is a bit more reliable than using density estimators. Really, when we are just looking at two distributions, we should use a QQ-plot (quantile-quantile plot), and we will do so later in the lab. If the empirical cdfs of the two distributions coincide, then the QQ-plot produces a line with slope 1 and intercept 0 (a $45^\circ$ degree line through the origin, the line $y=x$).
+
+##  1.2 The Issue from Sampling
+Of course, when we sample, we only get to see one sample of observations from the population. In terms of our picture, we might randomly get to see $Sample_3$.
+```{r single_samp_diagram, echo=FALSE}
+grViz("
+digraph pop_and_samp {
+  graph [overlap = true, fontsize = 10,rankdir=LR]
+  node [shape = oval, fontname = Helvetica, height=3, width=1] 
+    Population;
+  
+  node [shape = oval, fontname = Helvetica, height=0.5, width=1]
+    Sample_1; Sample_2; Sample_3 [style=filled,fillcolor=orange]; Sample_4; Sample_5; Sample_6
+  
+  Population -> {Sample_1,Sample_2};
+  Population -> Sample_3;
+  Population -> {Sample_4,Sample_5,Sample_6};
+}
+")
+```
+
+Now, $Sample_3$ contains a lot of observations from the population, but we do not have a picture from $Sample_3$ that mimics the sampling mechanism that created the distribution of the sample estimator.
+
+We could try to treat $Sample_3$ as though it is a population and take subsamples from it and look at the distribution of estimators from the subsamples. Pictorially, we would have a picture for subsamples of our original sample that looks very similar to the picture of samples from the population.
+```{r subsamp_diagram, echo=FALSE}
+grViz("
+digraph pop_and_samp {
+  graph [overlap = true, fontsize = 10,rankdir=LR]
+  node [shape = oval, fontname = Helvetica, height=3, width=1] 
+    Population;
+  
+  node [shape = oval, fontname = Helvetica, height=0.5, width=1]
+    Sample_1; Sample_2; Sample_3 [style=filled,fillcolor=orange]; Sample_4; Sample_5; Sample_6
+  node [shape = oval, fontsize=8, fontname = Helvetica, height=0.25, width=0.5, style=filled,fillcolor=orange]
+    Subsample_1; Subsample_2; Subsample_3; Subsample_4; Subsample_5; Subsample_6; Subsample_7; Subsample_8; Subsample_9; Subsample_10;  
+  Population -> {Sample_1,Sample_2,Sample_3,Sample_4,Sample_5,Sample_6};
+  Sample_3 -> {Subsample_1, Subsample_2, Subsample_3, Subsample_4, Subsample_5, Subsample_6, Subsample_7, Subsample_8, Subsample_9, Subsample_10};
+}
+")
+```
+
+However, these subsamples will have to have a sample size that is less than $n$. Let's compare the empirical cdfs we get from sampling the population and we get from subsampling from a fixed sample. We will take subsamples that that have $3/4$ths the number of observations in the sample.
+```{r subsample_ecdf}
+fixed_sample_x = sample(x,n,FALSE)
+n_sub = ceiling(0.75*n)
+N_subsamples = N_samples
+theta_hat_fixed_sample_x = mean(fixed_sample_x)
+theta_hat_sub = rep(NA,N_subsamples)
+for(i in 1:N_subsamples){
+  y = sample(fixed_sample_x,n_sub,FALSE)
+  theta_hat_sub[i] = mean(y)
+}
+plot(ecdf(theta_hat_sub),main="Emprical CDF",xlab="t",ylab="Probability Below",cex=0,col="blue",xlim=c(34,41))
+lines(ecdf(theta_hat),cex=0)
+legend("bottomright",legend=c("Samples","Subsamples"),fill=c("black","blue"))
+```
+
+Notice that these two curves do not look at all like each other, there is both a shift and a different slope in the middle. So, subsampling our fixed sample does not give us a good approximation of the disribution of the sample estimator. Let's look at this in terms of a QQ-plot.
+```{r qqplot_1_subsampling}
+qqplot(theta_hat,theta_hat_sub)
+abline(0,1)
+```
+
+This is nowhere near close the line $y=x$.
+
+##  1.3 Non-Parametric Bootstrap
+Instead of subsampling without replacement a smaller number of observations from our fixed sample, we could try to take a subsample with the same size as our fixed sample. The problem is that there is only one such subsample of our fixed sample. The solution is to resample from our sample with replacement. This produces a picture where the resamples have the same size as the original sample. These resamples are called replicates because they are supposed to replicate the generation of the sample.
+```{r Resamp_diagram, echo=FALSE}
+grViz("
+      digraph pop_and_samp {
+      graph [overlap = true, fontsize = 10,rankdir=LR]
+      node [shape = oval, fontname = Helvetica, height=3, width=1] 
+      Population;
+      
+      node [shape = oval, fontname = Helvetica, height=0.5, width=1]
+      Sample_1; Sample_2; Sample_3 [style=filled,fillcolor=orange]; Sample_4; Sample_5; Sample_6
+      node [shape = oval, fontname = Helvetica, style=filled,fillcolor=orange]
+      Replicate_1; Replicate_2; Replicate_3; Replicate_4; Replicate_5; Replicate_6; Replicate_7; Replicate_8; Replicate_9; Replicate_10;  
+      Population -> {Sample_1,Sample_2,Sample_3,Sample_4,Sample_5,Sample_6};
+      Sample_3 -> {Replicate_1, Replicate_2, Replicate_3, Replicate_4, Replicate_5, Replicate_6, Replicate_7, Replicate_8, Replicate_9, Replicate_10};
+      }
+      ")
+```
+
+Now, let's do the resampling and place it on the same graph as the subsampling we did before.
+```{r replicate_ecdf}
+N_repplicates = N_subsamples
+theta_hat_rep = rep(NA,N_repplicates)
+for(i in 1:N_repplicates){
+  y = sample(fixed_sample_x,n,TRUE)
+  theta_hat_rep[i] = mean(y)
+}
+plot(ecdf(theta_hat_rep),main="Emprical CDF",xlab="t",ylab="Probability Below",cex=0,col="red",xlim=c(34,41))
+lines(ecdf(theta_hat_sub),cex=0,col="blue")
+lines(ecdf(theta_hat),cex=0)
+legend("bottomright",legend=c("Samples","Subsamples","Replicates"),fill=c("black","blue","red"))
+```
+
+As you can see, the resampling produces an empirical cdf that is much more like that from sampling than the emprical cdf that we got from subsampling was. It just appears as though there is a shift of the empirical cdfs. Let's make the plot again but shift each empirical cdf. We will shift the population sampling by $\theta^*$ and the sampling from our fixed sample by the $\widehat{\theta}$ of our fixed sample.
+```{r shifted_ecdf}
+plot(ecdf(theta_hat_rep - theta_hat_fixed_sample_x),main="Emprical CDF",xlab="t",ylab="Probability Below",cex=0,col="red",xlim=c(-3.5,3.5))
+lines(ecdf(theta_hat_sub - theta_hat_fixed_sample_x),cex=0,col="blue")
+lines(ecdf(theta_hat - theta_star),cex=0)
+legend("bottomright",legend=c("Samples","Subsamples","Replicates"),fill=c("black","blue","red"))
+```
+
+Hark! The shifted curves (`t`-`t0`) from resampling with replacement and from sampling the population coincide with each other quite well! This is what the theory of the non-parametric bootstrap says. Under reasonable conditions (which we are will not discuss here), the shifted distribution (`t`-`t0`) from resampling with replacement from our fixed sample converges in distribution to the shifted distribution (`t`-`t0`) from sampling from the original population as the sample size increases.
+
+Let's look at the QQ-plot for the shifted empirical distribution (`t`-`t0`) from sampling the population and from resampling the specific sample with replacement.
+```{r qq_plot}
+qqplot(theta_hat-theta_star,theta_hat_rep-theta_hat_fixed_sample_x)
+abline(0,1)
+```
+
+This is not perfect, but it is not too bad. There is theory that says that this gets better as sample size increases if certain conditions are met (we are not going to talk about those).
+
+Just to be concrete, let's call $\widehat{\theta}$ an estimate from sampling and $\widetilde{\theta}$ an estimate from a bootstrap replicate. The theory says that the distribution of $\widetilde{\theta}-\widehat{\theta}$ converges in distibution to the distribution of $\widehat{\theta}-\theta^*$.
+\[
+\left(\widetilde{\theta}-\widehat{\theta}\right)
+\stackrel{Dist}{\longrightarrow}
+\left(\widehat{\theta}-\theta^*\right).
+\]
+On the left hand side, $\widehat{\theta}$ is fixed and $\widetilde{\theta}$ is random. On the right hand side, $\theta^*$ is fixed and $\widehat{\theta}$ is random.
+
+# 2. Performing the Non-parametric Boostrap in `R`
+We could write our own code for doing the non-parametric bootstrap, but luckily there is a package for doing the bootstrap called `boot`. All we have to do is figure out what the input and output for the function are. Then we can structure our functions to work with the functions from `boot`.
+
+##  2.1 Structure of `boot` Input
+The function `boot` in the library `boot` has a large number of possible inputs. For now, we only need to focus on four of them.
+
+1. `data` - either a vector or a data frame. If it is a data frame, then each row is a multivariate observation.
+
+2. `statistic` - this is the function that computes our statistic of interest. It can have two different kind of structures depending on whether we want to do parametric or non-parametric bootstrap. Because we are doing non-parametric bootstrap, we will focus on this case (more later).
+
+3. `R` - the number of bootstrap replicates we want to take.
+
+4. `...` - additional arguments that will be passed to `statistic`. 
+
+Now, to discuss the structure of the `statistic` function for non-parametric bootstrap. The first argument must be the data, the second argument must be the index of observations we want to use to compute the statistic. After these first two arguments, we can include any other arguments we want as long as their input does not change based on the index we are using. Let's go ahead are re-write the `mean` function to fit this structure.
+```{r rewrite_mean}
+get_mean = function(y,index=c(1:length(y))){
+  # we have made index default to 1,2,...,n where n=length(y)
+  # redefining y locally so it is from index
+  y = y[index]
+  # everything else is the same
+  mean(y)
+}
+```
+
+Let's test out the boot function with `R=10000`. We will just get the output from the function here and look at the output in the next subsection.
+```{r test_boot}
+y = sample(x,n,FALSE) # getting a single sample from x and calling it y
+R = 10000
+mean_boot_out = boot(y,get_mean,R=R)
+# we are letting all of the other arguments to boot be the defaults
+class(mean_boot_out)
+names(mean_boot_out)
+```
+
+##  2.2 Structure of Boot Output
+The class of the output is `boot` and the list from the output has lots of things in it. Some of these are just book keeping so that you could figure out from the output exactly what we did. The two quantities of interest to us are `t0` and `t`. The former (`t0`) is the statistic computed using the full sample and the latter (`t`) is the output from `statistic` from the bootstrap replicates. Let's look at these in our example.
+```{r boot_output}
+mean_boot_out$t0
+plot(mean_boot_out$t)
+```
+
+If `statitic` returns a scalar (as it does in our example), then `t` is a vector. If statistic returns a vector (which it will when we do multidimensional statistics), then `t` is a matrix with each row being from a singe bootstrap replicate.
+
+##  2.3 Estimating Bias
+Recall that the bias of $\widehat{\theta}$ as an estimator of $\theta^*$ is given by
+\[
+Bias = E\left[\widehat{\theta}\right]-\theta^*.
+\]
+Using the logic of the non-parametric bootstrap, that
+\[
+\left(\widetilde{\theta}-\widehat{\theta}\right)
+\stackrel{Dist}{\longrightarrow}
+\left(\widehat{\theta}-\theta^*\right),
+\]
+we can estimate the bias using $R$ bootstrap replicates by
+\[
+\widehat{Bias} = \frac{1}{R}\sum_{i=1}^R \widetilde{\theta} - \widehat{\theta}.
+\]
+This is very easy using the output from `boot`.
+```{r est_bias}
+bias_hat = mean(mean_boot_out$t) - mean_boot_out$t0
+# let's compare to the bias we can estimate using many samples we took
+c(bias_hat,mean(theta_hat)-theta_star)
+```
+
+From this output, the estimated bias is very small relative to the range of estimates from the bootstrap replicates. Really, we can only expect this estimate of the bias to be within an error of the actual estimate we would get from taking all possible bootstrap replicates. That error is something like a multiple of $1/\sqrt{R}$. So, in this example, we might compute an interval like
+```{r interval_for_bias}
+bias_hat + c(-1,1)*1.96*sd(mean_boot_out$t)/sqrt(R)
+```
+and reasonably conclude that we can't say that the bias is non-zero.
+
+# 3. Tasks
+
+##  3.0 Bootstrap Confidence Intervals
+One way to construct confidence intervals is to take advantage of the fundamental logic of the non-parametric bootstrap
+\[
+\left(\widetilde{\theta}-\widehat{\theta}\right)
+\stackrel{Dist}{\longrightarrow}
+\left(\widehat{\theta}-\theta^*\right)
+\]
+
+Let's fix a confidence level $1-\alpha$ and get values $\ell$ and $u$ so that $(1-\alpha)\times 100\%$ of the $\widetilde{\theta}$ are between $\ell$ and $u$. By construction, we have
+\[
+1-\alpha = P\left(\ell<\widetilde{\theta}< u\right).
+\]
+We can subtract $\widehat{\theta}$ to get
+\[
+1-\alpha = P\left(\ell-\widehat{\theta}<\widetilde{\theta}-\widehat{\theta}< u-\widehat{\theta}\right).
+\]
+Using the convergence in distribution, we get
+\[
+P\left(\ell-\widehat{\theta}<\widetilde{\theta}-\widehat{\theta}< u-\widehat{\theta}\right)
+\approx 
+P\left(\ell-\widehat{\theta}<\widehat{\theta}-\theta^*< u-\widehat{\theta}\right).
+\]
+This gives us
+\[
+1-\alpha
+\approx 
+P\left(\ell-\widehat{\theta}<\widehat{\theta}-\theta^*< u-\widehat{\theta}\right).
+\]
+Doing a little manipulation, we finally get
+\[
+1-\alpha
+\approx 
+P\left(2\widehat{\theta}-u<\theta^*< 2\widehat{\theta}-\ell\right).
+\]
+This is called the pivot interval because we "know" the distribution of $\widetilde{\theta}-\widehat{\theta}$ in the sense that we can take as many bootstrap replicates as we want.
+
+Here is computing a equal probabilty, two-sided confidence interval by hand.
+```{r ci_by_hand}
+alpha = 0.01
+ell_u = quantile(mean_boot_out$t,c(alpha/2,1-alpha/2))
+ci = 2*mean_boot_out$t0 - c(ell_u[2],ell_u[1])
+names(ci) = names(ell_u)
+print(ci)
+```
+
+Let's go back and look at the QQ-plot we had from before.
+```{r, ref.label = "qq_plot", echo=FALSE}
+```
+
+Now, the QQ-plot is not perfectly on a $45^\circ$ line; the spreads of the bootstrap cdf and sampling cdf are not the same. There are more complicated ways to get bootstrap intervals that try to correct this by playing with variance and skewness. We can get these intervals using the command `boot.ci`. 
+
+The first we will output is the one we just computed, `type="basic"`, which is bias corrected and based on percentiles. The second we will output is `type="bca"`, which is bias corrected and accelerated (which tries to correct spread issues but is complicated to discuss theoretically).
+```{r boot_ci}
+two_ci = boot.ci(mean_boot_out,conf=1-alpha,type=c("basic","bca"))
+print(two_ci)
+```
+The more similar the empirical cdfs (from sampling and from bootstrap replicates) are, the more the two intervals should coincide. Generally, the `bca` interval is the better interval to use. We can obtain the respective intervals from the output directly.
+```{r get_boot_ci}
+ci_basic = two_ci$basic[4:5]
+ci_bca = two_ci$bca[4:5]
+print(rbind(ci_basic,ci_bca))
+```
+
+##  3.1 Task 1
+Code up a statistic function for use in `boot` that estimates the shape $\alpha$ of a Gamma distribution using the moments relationship
+\[
+\alpha = \frac{E[X]^2}{Var[X]}
+\]
+where you replace $E[X]$ and $Var[X]$ with estimates from the data to get $\widehat{\alpha}$.
+```{r}
+get_shape = function(y,index=c(1:length(y))){
+  y = y[index]
+  mean_y = mean(y)
+  var_y = var(y)
+  estimate = mean_y^2/var_y
+  return(estimate)
+}
+get_shape(y)
+```
+
+
+##  3.2 Task 2
+Use the sample `y` from before (in Section 2.1) and `boot` to get `R=10000` bootstrap replicates of $\widehat{\alpha}$. Plot the shifted empirical cdf (`t`-`t0`) and the shifted empirical density function. Compute and report `basic` and `bca` intervals.
+```{r}
+y = sample(x,n,FALSE) # getting a single sample from x and calling it y
+boot_out = boot(y,get_shape,R=10000)
+shifted_output = boot_out$t - boot_out$t0
+plot(ecdf(shifted_output))
+plot(density(shifted_output))
+# get confidence interval 
+
+  boot.ci_out = boot.ci(boot_out,conf = 0.95,type=c("basic", "bca"))
+boot.ci_out
+class(boot.ci_out)
+names(boot.ci_out)
+{
+  boot.ci_out$basic
+  boot.ci_out$bca
+}
+```
+
+##  3.3 Task 3
+Respond to the following prompts:
+
+1. Comment on the shifted empirical cdf and the empirical density functions for (`t`-`t0`) you plotted. Can you tell me some idea of the spread of the estimator from these plots?
+
+The empirical cdf is non-decreasing from 0 on the left(bottom) to 1 on the right(top). It is a step function because the number of samples is finite. The spread of the estimator seems to be around 0.
+
+2. Comment on the `basic` and `bca` confidence intervals you computed.
+
+The two confidence intervals are not very similar. Therefore the ecdfs must be relatively different from each other.
+
+3. $\alpha$ is a measure of shape. It tells you how fast the Gamma density decreases at 0. There is a huge change from decreasing at $0$ when $\alpha>1$ to increasing at $0$ when $\alpha<1$. Do you think you can conclude that $\alpha>1$ from your analysis? Why?
+
+I believe so, because the ecdf graph shows us a pretty tame slope compared to what an $\alpha<1$ nearly vertical slope would be.
+
+##  3.4 Task 4
+Use the following chunk to load a different dataset, deviations from the estimation of the gravitational constant from eight experiments. We are going to pool all of the experiments together, though should really respect the stratification over experiment.
+```{r new_dataset}
+data(gravity)
+y = gravity$g
+
+get_shape = function(y,index=c(1:length(y))){
+  y = y[index]
+  mean_y = mean(y)
+  var_y = var(y)
+  estimate = mean_y^2/var_y
+  return(estimate)
+}
+get_shape(y)
+```
+task 2
+```{r}
+boot_out = boot(y,get_shape,R=10000)
+shifted_output = boot_out$t - boot_out$t0
+{
+  plot(ecdf(shifted_output))
+  plot(density(shifted_output))
+}
+```
+```{r}
+# get confidence interval 
+
+  boot.ci_out = boot.ci(boot_out,conf = 0.95,type=c("basic", "bca"))
+boot.ci_out
+class(boot.ci_out)
+names(boot.ci_out)
+{
+  boot.ci_out$basic
+  boot.ci_out$bca
+}
+```
+task 3
+1. Comment on the shifted empirical cdf and the empirical density functions for (`t`-`t0`) you plotted. Can you tell me some idea of the spread of the estimator from these plots?
+
+The empirical cdf is non-decreasing from 0 on the left(bottom) to 1 on the right(top). It is a step function because the number of samples is finite. The spread of the estimator seems to be around 0.
+
+2. Comment on the `basic` and `bca` confidence intervals you computed.
+
+The two confidence intervals are not similar. Therefore the ecdfs must be quite different from each other.
+
+3. $\alpha$ is a measure of shape. It tells you how fast the Gamma density decreases at 0. There is a huge change from decreasing at $0$ when $\alpha>1$ to increasing at $0$ when $\alpha<1$. Do you think you can conclude that $\alpha>1$ from your analysis? Why?
+
+Yes, because the ecdf graph shows us a pretty tame slope compared to what an $\alpha<1$ nearly vertical slope would be.
+
+I am not sure if this data really follows a gamma distribution, but we will treat it like it does. Repeat Tasks 1-3 on this new `y`.

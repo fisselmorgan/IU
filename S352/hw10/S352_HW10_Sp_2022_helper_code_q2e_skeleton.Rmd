@@ -1,0 +1,73 @@
+---
+title: "HW 10 q2e skeleton"
+author: "Womack"
+date: "4/04/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, eval=FALSE}
+n = length(y)
+s_n = sum(y)
+u_n = sum(y^2)
+t_n = whatever I told you to use in the problem
+r_n = whatever I told you to use in the problem
+w_n = whatever I told you to use in the problem
+
+a_0=0
+b_0=1e6
+c_0=0
+d_0=1
+zeta_0 = 1
+delta_0 = 1
+
+N_samps = 10000
+alpha_curr =  whatever I told you to use in the problem
+beta_curr =  whatever I told you to use in the problem
+nu_curr = NA
+
+#making containers for output
+alpha_out = beta_out = nu_out = rep(NA,N_samps)
+
+#Looping for the sampler
+for(i in 1:N_samps){
+  #updating
+  #the a,b,c,d,delta,zeta are all defined in terms of the statistics and the current values
+  #in their definitions in q1e, where you see and alpha, beta, or nu 
+  #you should use alpha_curr, beta_curr, or nu_curr
+  
+  #changing order to update nu first because you only were given alpha and beta starting values
+  delta_curr = whatever I told you to use in the problem
+  zeta_curr = whatever I told you to use in the problem
+  nu_curr = rinvgamma(1, delta_curr, zeta_curr)
+
+  b_curr = whatever I told you to use in the problem
+  a_curr = whatever I told you to use in the problem
+  alpha_curr = rnorm(1,a_curr,sqrt(b_curr)) 
+  
+  c_curr = whatever I told you to use in the problem
+  d_curr = whatever I told you to use in the problem
+  beta_curr = rnorm(1,c_curr,sqrt(d_curr)) 
+  
+      #storing
+  nu_out[i] = nu_curr
+  alpha_out[i] = alpha_curr
+  beta_out[i] = beta_curr
+}
+
+```
+
+```{r,eval=FALSE}
+y_pred = rnorm(n,draws_alpha_mean+x*draws_beta_mean,sqrt(draws_nu_mean))
+plot(y_pred~x)
+points(y~x)
+
+x_new = 3800
+y_pred = rnorm(N_samps,draws_alpha+x_new*draws_beta,sqrt(draws_nu)) 
+plot(density(y_pred))
+lines(density(y[x>=3700 & x<=3900]),col="blue",lty=2)
+```

@@ -1,0 +1,292 @@
+---
+title: "final_fissel"
+author: "Morgan Fissel"
+date: "5/3/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Question 7
+library(boot); data(manaus); x=manaus
+
+#find sample skewness
+G_fun = function(x,ind=c(1:length(x))){
+  x = x[ind]
+  n = length(x)
+  xbar = mean(x)
+  G = ((n*sum((x-xbar)^3))/((n-1)*(n-2)))/(sum((x-xbar)^2)/(n-1))^(3/2)
+  return(G)
+}
+  
+boot_out = boot(x,G_fun,R=10000)
+boot_ci = boot.ci(boot_out,conf=0.97,type='basic')
+boot_ci
+  
+```
+The data exhibits a negative skewness at the confidence level of 0.97.
+
+```{r}
+# Question 8
+library(boot); data(discoveries); x=discoveries
+mle_fun = function(x){
+  #function to optimize using optim
+  f = function(theta){
+    alpha = theta[1]
+    mu = exp(theta[2]) #note the transformation
+    sum(dnbinom(x,size=alpha,mu=mu,log=TRUE))
+  }
+  #using optim - starting at a guess of mu=0 and log(delta)=0 -- par=c(0,0)
+  mu_0 = mean(x)
+  alpha_0 = mean(x)^2/(var(x)-mean(x))
+  opt_out = optim(par=c(alpha_0,mu_0),f,control=list(fnscale=-1,maxit=1000,reltol=1e-8))
+  par = opt_out$par
+  par[2] = exp(par[2]) #transforming to delta
+  names(par) = c("alpha","mu") #NAMES ARE GOOD
+  out = list(theta=par,loglik=opt_out$value)
+  return(out)
+}
+
+
+#dnbinom(x,size=alpha,mu=mu,log=TRUE)
+
+fit_mle = mle_fun(x)
+fit_mle
+#dens_x = density(x)
+#plot(density(x),main="Density for Negative Binomial",ylab="Density",xlab="x")
+
+#theta_negbi = fit_mle$theta
+#lines(dpois(x_values,5.4))
+#dens_negbi = dnbinom(x_values,size=theta_negbi['alpha'],mu=theta_negbi['mu'],log=TRUE)
+#lines(dens_negbi~x_values,col="blue",lty=2)
+#legend("topleft",legend=c("KDE","Negative Binomial"),col=c("black","blue"),lty=c(1,2))
+```
+Based on MLE alone, I do not think alpha is sufficiently large enough to warrant the Poisson model for the data, as the alpha is only ~5.4. Alpha does not seem to be likely to approach infinity. 
+
+
+```{r}
+# Question 9
+dskewnorm = function(x,mu,sigma,alpha,log=FALSE){
+  z = (x-mu)/sigma
+  out = log(2)-log(sigma)+dnorm(z,log=TRUE)+pnorm(alpha*z,log.p=TRUE)
+  if(log==TRUE){return(out)}else{return(exp(out))}
+}
+
+mle_skewnorm = function(x){
+  f = function(theta){
+    mu = theta[1]; sigma = exp(theta[2]); alpha = theta[3]
+    return(sum(dskewnorm(x,mu,sigma,alpha,TRUE)))
+  }
+  opt = optim(c(0,0,0),f,control=list(fnscale=-1))
+  theta = opt$par; theta[2] = exp(theta[2]); names(theta) = c("mu","sigma","alpha")
+  return(list(theta=theta,loglik=opt$value))
+}
+
+mle_skewnorm_fixed_alpha = function(x,alpha_0){
+  f = function(theta){
+    mu = theta[1]; sigma = exp(theta[2]); alpha = alpha_0
+    return(sum(dskewnorm(x,mu,sigma,alpha,TRUE)))
+  }
+  opt = optim(c(0,0),f,control=list(fnscale=-1))
+  theta = opt$par; theta[2] = exp(theta[2]); names(theta) = c("mu","sigma")
+  return(list(theta=theta,loglik=opt$value))
+}
+
+library(boot); data(poisons); x = log(poisons$time)
+
+full_model = mle_skewnorm(x)
+
+conf=0.98
+lambda_fun = function(alpha,x,fit_full,conf,cutoff=qchisq(conf,1)){
+  if(alpha<=0){return(Inf)}
+  fit_H0 = mle_skewnorm_fixed_alpha(x=x,alpha=alpha)
+  fit_HA = full_model 
+  lambda = 2*(fit_HA$loglik - fit_H0$loglik)
+  return(lambda-cutoff)
+}
+
+alpha_hat = full_model$theta['alpha']
+lower_bound = uniroot(lambda_fun,
+                      interval=c(0,alpha_hat),#c(MLE-something,MLE),
+                      x=x,conf = conf,
+                      extendInt = "downX")$root
+
+upper_bound = uniroot(lambda_fun,
+                      interval=c(alpha_hat,alpha_hat+0.3),#c(MLE,MLE+something),
+                      x=x,conf = conf,
+                      extendInt = "upX")$root
+
+CI = c(lower_bound,upper_bound)
+est = alpha_hat; names(est) = "alpha_hat"
+CI
+```
+Yes, you can reject the value alpha = 0 at the 0.02 significance level. Note though that 0 is included in the interval however it is very close to the lower bound. So there is potential when you would not be able to reject 0 at 0.02 significance level.
+
+```{r}
+# Question 10
+d_x = function(x,log=FALSE){
+  out = log(6)-2*log(pi)+log(x)-log(exp(x)-1)
+  if(log==TRUE){return(out)}else{return(exp(out))}
+}
+
+d_y = function(y,log=FALSE){
+  out = log(6)-2*log(pi)-2*log(y+1)
+  if(log==TRUE){return(out)}else{return(exp(out))}
+}
+
+
+gibbs = function(N_draws,x0=2,y0=0){
+  x_curr = x0 
+  y_curr = y0 
+  y_out = x_out = rep(NA,N_draws)
+  
+  for(i in 1:N_draws){
+    x_curr = rgamma(1,2,y_curr+1)
+    y_curr = rgeom(1,p=1-exp(-x_curr))
+    x_out[i] = x_curr
+    y_out[i] = y_curr
+  }
+  
+  return(list(x=x_out,y=y_out))
+}
+
+draws = gibbs(10000)
+plot(log(draws$x),pch=".")
+plot(log(draws$y),pch=".")
+acf(log(draws$x))
+acf(draws$y) #log doesn't work here
+plot(density(draws$x),ylim=c(0,0.8)) #Gibbs
+lines((d_x(draws$x)),col='blue',lty=2) #True
+
+plot(density(draws$y), xlim=c(0,11))
+lines((d_y(draws$y)),col='blue',lty=2)
+mean(d_x(draws$x)) # E[X]
+var(d_y(draws$y)) # Var[Y]
+cor(d_x(draws$x),d_y(draws$y)) # Cor[X,Y]
+```
+The trace plot for the x draws is pretty good, kind of thin. The acf for the x draws isn't great, falling off somewhere around 12. 
+The trace plot for the y draws is awful, stringy lines all about. The acf for the y draws isn't much better than the x falling off around 11. 
+The Gibbs sampler is not suitable for estimating based on the joint distribution of X and Y. It does not get very close to accurately estimating any part of the true densities.
+
+
+```{r}
+# Question 11
+library(boot); data(melanoma); x = log(melanoma$thickness)
+x=x/(sd(x)+runif(1,-.05,.05))
+n = length(x)
+xbar = mean(x)
+N_samps = 10000
+post_draws = rnorm(N_samps,n*xbar/n+1,1/n+1)
+pred_draws = rnorm(N_samps,post_draws,1)
+point_est = mean(post_draws)#point estimate
+plot(density(x))
+lines(density(pred_draws),col='red',lty=2)
+ks.test(x,pred_draws)
+var(pred_draws)
+```
+This does not look like a good model to make predictions, but it's not far from getting a decent estimate of the mean. The center captured is shifted to the right. The full Bayes predictive density does not match the plug-in estimator predictive density. I do think this variance is worth noting and meaningfully larger than 1. As it continues to show us that the prediction isn't the best for the full density. 
+
+
+
+```{r}
+# Question 12
+library(palmerpenguins); data("penguins");
+y = penguins$flipper_length_mm; x = penguins$body_mass_g;
+ind = !(is.na(y) | is.na(x)); y = y[ind]; x = x[ind]
+y = (y-mean(y))/sd(y); x = (x-mean(x))/sd(x)
+
+beta_hat_fun = function(y,x,lambda){
+  f = function(beta){
+    mean((y-x*beta)^2)+0.5*lambda*(beta^2+abs(beta))
+  }
+  beta_hat = optimize(f,c(-2,2),tol = 1e-12)$minimum
+  return(beta_hat)
+}
+loss_fun = function(beta_hat,y,x,lambda){ ### CVM 
+  mean((y-x*beta_hat)^2)+0.5*lambda*(beta_hat^2+abs(beta_hat))
+}
+
+SPLIT_Kfold = function(n,K){
+  ind = c(1:n)
+  out = list()
+  for(i in 1:(K-1)){
+    size = length(ind)*1/(K-i+1)
+    split = sort(sample(ind,size))
+    ind = ind[ !( ind %in% split ) ]
+    out[[i]] = split
+  }
+  out[[K]] = ind
+  return(out)
+}
+
+FIT = function(y,x,train_ind,lambda){ ### FIT
+  x_train = x[train_ind]
+  y_train = y[train_ind]
+  beta_hat = beta_hat_fun(y_train,x_train,lambda)
+  return(beta_hat)
+}
+
+lambda = seq(0.01,1,length.out=100) 
+n = length(y)
+K = 5 
+splits = SPLIT_Kfold(n,K)
+
+avg_cvm = rep(NA,length(lambda))
+#looping over lambda values
+for(i in 1:length(lambda)){
+  # local container for cvm over splits for a specific lambda[i]
+  cvm_loc = rep(NA,K)
+  #looping over splits
+  for(j in 1:K){
+    # get training indices
+    # split is test indices
+    # complement of split is training indices
+    test_ind = splits[[j]]
+    train_ind = c(1:n)[-test_ind]
+    # local fit
+    fit_loc = FIT(y,x,train_ind,lambda[i])
+    # local cvm for jth split  
+    cvm_loc[j] = loss_fun(fit_loc,y,x,lambda[i])
+  }
+  #getting avg cvm for the specific lambda[i]
+  avg_cvm[i] = mean(cvm_loc)
+}
+
+#best lambda value
+lambda[which.min(avg_cvm)]
+```
+
+0.01, x does not seems to be explaining a meaningful amount of the variation in y (0.01 is small)
+```{r}
+K = 10
+splits = SPLIT_Kfold(n,K)
+
+avg_cvm = rep(NA,length(lambda))
+#looping over lambda values
+for(i in 1:length(lambda)){
+  # local container for cvm over splits for a specific lambda[i]
+  cvm_loc = rep(NA,K)
+  #looping over splits
+  for(j in 1:K){
+    # get training indices
+    # split is test indices
+    # complement of split is training indices
+    test_ind = splits[[j]]
+    train_ind = c(1:n)[-test_ind]
+    # local fit
+    fit_loc = FIT(y,x,train_ind,lambda[i])
+    # local cvm for jth split  
+    cvm_loc[j] = loss_fun(fit_loc,y,x,lambda[i])
+  }
+  #getting avg cvm for the specific lambda[i]
+  avg_cvm[i] = mean(cvm_loc)
+}
+
+#best lambda value
+lambda[which.min(avg_cvm)]
+
+```
+Even with 10-fold cross validation, x only seems to account for about 0.01 of y, once again. 

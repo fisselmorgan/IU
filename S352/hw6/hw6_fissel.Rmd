@@ -1,0 +1,700 @@
+---
+title: "HW6_Fissel"
+author: "Morgan Fissel"
+date: "3/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+1.
+a) Invert the Likelihood Ratio Test to form a confidence interval with confidence level 1 −
+0.04 = 0.96 for the shape parameter α when a Gamma distribution is used to model the
+melanoma$thickness data.
+```{r}
+library(boot)
+data(melanoma); y = melanoma$thickness
+#density - dgamma - built in
+# mle for fixed shape parameter
+mle_gamma_fixed_shape = function(y,alpha_0,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    alpha = alpha_0
+    beta = theta
+    sum(dgamma(y,shape=alpha,rate=beta,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    alpha = alpha_0 
+    beta = exp(theta)
+    sum(dgamma(y,shape=alpha,rate=beta,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0),method="Brent",lower=-20,upper=20,
+                    loglik_fun_trans,control=list(fnscale=-1,maxit=10000)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par = exp(fit$par)
+  d = 1
+  AIC = -2*fit$value + 2*d
+  names(fit$par) = c("beta") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,alpha=alpha_0,loglik=fit$value,dim=d,AIC=AIC))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,alpha=alpha_0,loglik=fit$value,dim=d,AIC=AIC,vcov=fit_vcov))
+  }
+}
+
+# now null
+mle_gamma_null = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    alpha = 1 #theta[1]
+    beta = theta[1]
+    sum(dgamma(y,shape=alpha,rate=beta,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    alpha = 1 #exp(theta[1])
+    beta = exp(theta[1])
+    sum(dgamma(y,shape=alpha,rate=beta,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0),loglik_fun_trans,
+                    method="Brent", lower=-100, upper=100,
+                    control=list(fnscale=-1,maxit=10000)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = exp(fit$par[1])
+  dim = 1
+  AIC = -2*fit$value + 2*dim
+  names(fit$par) = "beta" #NAMES ARE GOOD
+  return(list(theta=fit$par,loglik=fit$value,dim=dim,AIC=AIC))
+  
+  
+  #using optimHess to get the Hessian
+  #we use the regular log-likelihood function
+  fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+  #we convert the Hessian into a variance-covariance matrix
+  #inversion is achieved using solve
+  fit_vcov = solve(-fit_hess)
+  rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+  return(list(theta=fit$par,loglik=fit$value,dim=dim,AIC=AIC,vcov=fit_vcov))
+  
+}
+```
+
+```{r}
+# make a significance level for the test
+significance_level = 0.04
+  
+# LRT computations
+fit_alternative = mle_gamma_fixed_shape(y,(1-significance_level))
+fit_null = mle_gamma_null(y)
+
+test_stat = 2*(fit_alternative$loglik - fit_null$loglik)
+print(test_stat)
+df = fit_alternative$dim - fit_null$dim
+p_value = pchisq(test_stat,df=df ,lower.tail = FALSE)
+print(p_value)
+cutoff = qchisq(significance_level,df=df,lower.tail=FALSE)
+print(cutoff)
+if(test_stat>cutoff){
+    decision = 'Reject H0'
+}else{
+  decision = 'Fail to reject H0'
+}
+print(decision)
+```
+1.
+b)
+```{r}
+library(boot); data(melanoma); y = log(melanoma$thickness)
+#density - dlogisIII - provided
+dlogisIII=function(x,location=0,scale=1,shape=1,log=FALSE){
+  x = (x-location)/scale
+  log_y = ifelse(x<0,x-log(1+exp(x)),-log(1+exp(-x)))
+  log_1my = ifelse(x<0,-log(1+exp(x)),-x-log(1+exp(-x)))
+  out = -log(scale)-lbeta(shape,shape) + (shape)*(log_y+log_1my)
+  if(log){return(out)}else{return(exp(out))}
+}
+# mle
+mle_logisIII_fix_shape = function(y,alpha_0,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    mu = theta[1]
+    delta = theta[2]
+    alpha = alpha_0
+    sum(dlogisIII(y,location=mu,scale=delta,shape=alpha,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    mu = theta[1]
+    delta = exp(theta[2])
+    alpha = alpha_0
+    sum(dlogisIII(y,location=mu,scale=delta,shape=alpha,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1,maxit=10000)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = fit$par[1]
+  fit$par[2] = exp(fit$par[2])
+  d = 2
+  AIC = -2*fit$value + 2*d
+  names(fit$par) = c("mu","delta") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,alpha=alpha_0,loglik=fit$value,dim=d,AIC=AIC))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,loglik=fit$value,dim=d,AIC=AIC,vcov=fit_vcov))
+  }
+}
+
+mle_logisIII_null = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    mu = theta[1]
+    delta = theta[2]
+    alpha = 1 #theta[3]
+    sum(dlogisIII(y,location=mu,scale=delta,shape=alpha,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    mu = theta[1]
+    delta = exp(theta[2])
+    alpha = 1 #exp(theta[3])
+    sum(dlogisIII(y,location=mu,scale=delta,shape=alpha,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1,maxit=10000)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = fit$par[1]
+  fit$par[2] = exp(fit$par[2])
+  dim = 2
+  AIC = -2*fit$value + 2*dim
+  names(fit$par) = c("mu","delta") #NAMES ARE GOOD
+  
+  return(list(theta=fit$par,loglik=fit$value,dim=dim,AIC=AIC))
+  
+  #using optimHess to get the Hessian
+  #we use the regular log-likelihood function
+  fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+  #we convert the Hessian into a variance-covariance matrix
+  #inversion is achieved using solve
+  fit_vcov = solve(-fit_hess)
+  rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+  return(list(theta=fit$par,loglik=fit$value,dim=dim,AIC=AIC,vcov=fit_vcov))
+  
+}
+```
+
+```{r}
+# make a significance level for the test
+significance_level = 0.03
+  
+# LRT computations
+fit_alternative = mle_logisIII_fix_shape(y,(1-significance_level))
+fit_null = mle_logisIII_null(y)
+
+test_stat = 2*(fit_alternative$loglik - fit_null$loglik)
+print(test_stat)
+df = fit_alternative$dim - fit_null$dim
+p_value = pchisq(test_stat,df=df ,lower.tail = FALSE)
+print(p_value)
+cutoff = qchisq(significance_level,df=df,lower.tail=FALSE)
+print(cutoff)
+if(test_stat>cutoff){
+  decision = 'Reject H0'
+}else{
+  decision = 'Fail to reject H0'
+}
+print(decision)
+```
+1.
+c)
+```{r}
+# data - built in
+y = faithful$eruptions[faithful$waiting>71]
+#density - dgengamma - provided
+dgengamma = function(y,d,k,s,log=FALSE){
+  out = log(k) -lgamma(d/k) -d*log(s) +log(y)*(d-1) -(y/s)^k
+  if(log){out}else{exp(out)}
+}
+# mle
+mle_gengamma_fix_shape = function(y,alpha_0,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    k = theta[1]
+    d = alpha_0*k
+    s = theta[2]
+    sum(dgengamma(y,d,k,s,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    k = exp(theta[1])
+    d = alpha_0*k
+    s = exp(theta[2])
+    sum(dgengamma(y,d,k,s,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1,maxit=10000)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = exp(fit$par[1])
+  fit$par[2] = exp(fit$par[2])
+  d = 2
+  AIC = -2*fit$value + 2*d
+  names(fit$par) = c("k","s") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,alpha=alpha_0,loglik=fit$value,dim=d,AIC=AIC))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,loglik=fit$value,dim=d,AIC=AIC,vcov=fit_vcov))
+  }
+}
+
+mle_weibull_null = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    ## you are using dweibull instead of restricting dgengamma
+    ##scale is s, and dweibull has no second shape parameter
+    d = theta[1]
+    k = d
+    s=theta[2]#lambda = theta[2]
+    sum(dweibull(y,shape=k,scale=s,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    ## you are using dweibull instead of restricting dgengamma
+    ##scale is s, and dweibull has no second shape parameter
+    k = exp(theta[1])
+    d = k
+    s=exp(theta[2])#lambda = exp(theta[2])
+    sum(dweibull(y,shape=k,scale=s,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = exp(fit$par[1])
+  fit$par[2] = exp(fit$par[2])
+  dim = 2
+  AIC = -2*fit$value + 2*dim
+  names(fit$par) = c("k","s") #NAMES ARE GOOD
+  return(list(theta=fit$par,loglik=fit$value,dim=dim,AIC=AIC))
+  
+  #using optimHess to get the Hessian
+  #we use the regular log-likelihood function
+  fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+  #we convert the Hessian into a variance-covariance matrix
+  #inversion is achieved using solve
+  fit_vcov = solve(-fit_hess)
+  rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+  return(list(theta=fit$par,loglik=fit$value,vcov=fit_vcov))
+}
+```
+
+```{r}
+# make a significance level for the test
+significance_level = 0.05
+  
+# LRT computations
+fit_alternative = mle_gengamma_fix_shape(y,(1-significance_level))
+fit_null = mle_weibull_null(y)
+
+test_stat = 2*(fit_alternative$loglik - fit_null$loglik)
+print(test_stat)
+df = fit_alternative$dim - fit_null$dim
+p_value = pchisq(test_stat,df=df ,lower.tail = FALSE)
+print(p_value)
+cutoff = qchisq(significance_level,df=df,lower.tail=FALSE)
+print(cutoff)
+if(test_stat>cutoff){
+  decision = 'Reject H0'
+}else{
+  decision = 'Fail to reject H0'
+}
+print(decision)
+```
+1.
+d)
+```{r}
+# data - the package 'boot' needs to be installed
+library(boot); data("acme"); y = acme$acme
+#density - dhyperbolic - provided
+dhyperbolic = function(y,mu=0,delta=1,alpha=1,log=FALSE){
+  if(log(alpha)< -20){
+    log_NC = -log(alpha)+log(2)+log(delta)
+  }else{
+    log_NC = log(besselK(alpha,1,TRUE)) - alpha + log(2)+log(delta)
+  }
+  loss = alpha*sqrt(1+(y-mu)^2/delta^2)
+  out = -loss -log_NC
+  if(log==TRUE){out}else{exp(out)}
+}
+# mle
+mle_hyperbolic_fix_mean = function(y,mu_0,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    mu = mu_0
+    delta = theta[1]
+    alpha = theta[2]
+    sum(dhyperbolic(y,mu,delta,alpha,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    mu = mu_0
+    delta = exp(theta[1])
+    alpha = exp(theta[2])
+    sum(dhyperbolic(y,mu,delta,alpha,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1,maxit=10000)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = exp(fit$par[1])
+  fit$par[2] = exp(fit$par[2])
+  d = 2
+  AIC = -2*fit$value + 2*d
+  names(fit$par) = c("delta","alpha") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,mu=mu_0,loglik=fit$value,dim=d,AIC=AIC))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,mu=mu_0,loglik=fit$value,dim=d,AIC=AIC,vcov=fit_vcov))
+  }
+}
+
+mle_hyperbolic_null = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    mu = 0#theta[1]
+    delta = theta[1]
+    alpha = theta[2]
+    sum(dhyperbolic(y,mu,delta,alpha,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    mu = 0#theta[1]
+    delta = exp(theta[1])
+    alpha = exp(theta[2])
+    sum(dhyperbolic(y,mu,delta,alpha,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1,maxit=10000)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = fit$par[1]
+  fit$par[2] = exp(fit$par[2])
+  fit$par[3] = exp(fit$par[3])
+  dim = 2
+  AIC = -2*fit$value + 2*dim
+  names(fit$par) = c("mu","delta","alpha") #NAMES ARE GOOD
+  
+  return(list(theta=fit$par,loglik=fit$value,dim=dim,AIC=AIC))
+  
+  #using optimHess to get the Hessian
+  #we use the regular log-likelihood function
+  fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+  #we convert the Hessian into a variance-covariance matrix
+  #inversion is achieved using solve
+  fit_vcov = solve(-fit_hess)
+  rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+  return(list(theta=fit$par,loglik=fit$value,dim=dim,AIC=AIC,vcov=fit_vcov))
+ 
+}
+
+```
+```{r}
+# make a significance level for the test
+significance_level = 0.01
+  
+# LRT computations
+fit_alternative = mle_hyperbolic_fix_mean(y,(1-significance_level))
+fit_null = mle_hyperbolic_null(y)
+
+test_stat = 2*(fit_alternative$loglik - fit_null$loglik)
+print(test_stat)
+df = fit_alternative$dim - fit_null$dim
+p_value = pchisq(test_stat,df=df ,lower.tail = FALSE)
+print(p_value)
+cutoff = qchisq(significance_level,df=df,lower.tail=FALSE)
+print(cutoff)
+if(test_stat>cutoff){
+  decision = 'Reject H0'
+}else{
+  decision = 'Fail to reject H0'
+}
+print(decision)
+```
+1.
+e)
+```{r}
+# data - the package 'palmerpenguins' needs to be installed
+library(palmerpenguins); y = penguins$flipper_length_mm; x = penguins$body_mass_g
+ind = !(is.na(x)&is.na(y)); y=y[ind]; x=x[ind]
+#density - dlinmod - provided
+dlinmod = function(x,y,alpha,beta,sigma,log=FALSE){
+  dnorm(y,alpha+beta*x,sigma,log)
+}
+# mle
+mle_linmod_fixed_slope = function(x,y,beta_0,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    alpha = theta[1]
+    beta = beta_0
+    sigma = theta[2]
+    sum(dlinmod(x,y,alpha,beta,sigma,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    alpha = theta[1]
+    beta = beta_0
+    sigma = exp(theta[2])
+    sum(dlinmod(x,y,alpha,beta,sigma,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  #I had to change the starting point for the optimization for optim to work
+  fit_trans = optim(c(mean(y),0),loglik_fun_trans,control=list(fnscale=-1,maxit=10000)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = fit$par[1]
+  fit$par[2] = exp(fit$par[2])
+  d = 2
+  AIC = -2*fit$value + 2*d
+  names(fit$par) = c("alpha","sigma") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,beta=beta_0,loglik=fit$value,dim=d,AIC=AIC))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,beta=beta_0,loglik=fit$value,dim=d,AIC=AIC,vcov=fit_vcov))
+  }
+}
+
+mle_linmod_null = function(x,y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    alpha = theta[1]
+    beta = 0#theta[2]
+    sigma = theta[2]
+    sum(dlinmod(x,y,alpha,beta,sigma,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    alpha = theta[1]
+    beta = 0#theta[2]
+    sigma = exp(theta[2])
+    sum(dlinmod(x,y,alpha,beta,sigma,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  #I had to change the starting point for the optimization for optim to work
+  fit_trans = optim(c(mean(y),0),loglik_fun_trans,control=list(fnscale=-1,maxit=10000)) #scoping, looks for y one environment up
+  fit = fit_trans
+  ##AJW##
+  # two dimensional parameter
+  fit$par[1] = fit$par[1]
+  fit$par[2] = exp(fit$par[2])
+  dim = 2
+  AIC = -2*fit$value + 2*dim
+  ##AJW##
+  # two dimensional parameter
+  names(fit$par) = c("alpha","sigma") #c("alpha","beta","sigma") #NAMES ARE GOOD
+  
+  return(list(theta=fit$par,loglik=fit$value,dim=dim,AIC=AIC))
+  
+  #using optimHess to get the Hessian
+  #we use the regular log-likelihood function
+  fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+  #we convert the Hessian into a variance-covariance matrix
+  #inversion is achieved using solve
+  fit_vcov = solve(-fit_hess)
+  rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+  return(list(theta=fit$par,loglik=fit$value,dim=dim,AIC=AIC,vcov=fit_vcov))
+  
+}
+```
+```{r}
+# make a significance level for the test
+significance_level = 0.001
+  
+# LRT computations
+fit_alternative = mle_linmod_fixed_slope(x,y,(1-significance_level))
+fit_null = mle_linmod_null(x,y)
+
+test_stat = 2*(fit_alternative$loglik - fit_null$loglik)
+print(test_stat)
+df = fit_alternative$dim - fit_null$dim
+p_value = pchisq(test_stat,df=df ,lower.tail = FALSE)
+print(p_value)
+cutoff = qchisq(significance_level,df=df,lower.tail=FALSE)
+print(cutoff)
+if(test_stat>cutoff){
+  decision = 'Reject H0'
+}else{
+  decision = 'Fail to reject H0'
+}
+print(decision)
+```
+2.
+a)
+```{r}
+set.seed(345854)
+y=rbinom(142,1,0.3)
+CI_bernoulli = function(y,p=0.3,conf=0.95){#p
+  n = length(y) #getting sample size
+  cutoff = qchisq(1-conf,1,lower.tail = FALSE) #or qchisq(conf,1,lower.tail = TRUE)
+  p_hat = mean(y) #the MLE under the alternative, does not change
+  lrt_stat_minus_cutoff = function(p_0){
+    if(p_0 <=0){ #checking boundaries, lambda must be positive
+      return(Inf)
+    }else{
+      lrt_stat = 2*n*(p*log(p_hat/p_0)+(1-p_hat)*log((1-p_hat)/(1-p_0)))
+      return(lrt_stat - cutoff) 
+    }
+  }
+  interval = c(0,p_hat) #for the lower bound, using the constraint and the MLE
+  lower = uniroot(lrt_stat_minus_cutoff,interval,extendInt = "downX",tol = 1e-10,maxiter=10000) #extendInt="downX" is actually doing nothing here becasue of the constraint
+  interval = c(p_hat,1) #for the upper bound, MLE to MLE+10 (+10 was arbitrary and I could probably have been more clever in how I chose it)
+  upper = uniroot(lrt_stat_minus_cutoff,interval,extendInt = "upX",tol = 1e-10,maxiter=10000) #extendint="upX" is extending the interval looking for an up crossing. This is in case the +10 was not enough.
+  return(c(estimate=p_hat,lower=lower$root,upper=upper$root))
+}
+
+CI_bernoulli(y)
+```
+The interval contains the estimate, which is good, seems if you turn on a machine (with .3 prob) it will work about 28% of the time. Also the interval contains the true value. 
+2.
+b)
+```{r}
+set.seed(345854)
+k=rnbinom(142,10,1-0.3)
+CI_neg_bi = function(k,p=0.3,r=10,conf=0.95){#p
+  n = length(k) #getting sample size
+  cutoff = qchisq(1-conf,1,lower.tail = FALSE) #or qchisq(conf,1,lower.tail = TRUE)
+  p_hat = mean(k)/(r+mean(k)) #the MLE under the alternative, does not change
+  lrt_stat_minus_cutoff = function(p_0){
+    if(p_0 <=0){ #checking boundaries, lambda must be positive
+      return(Inf)
+    }else{
+      lrt_stat = 2*n*(((r*p_hat)/(1-p_hat))*log(p_hat/p_0) +r*log((1-p_hat)/(1-p_0)))
+      return(lrt_stat - cutoff) 
+    }
+  }
+  interval = c(0,p_hat) #for the lower bound, using the constraint and the MLE
+  lower = uniroot(lrt_stat_minus_cutoff,interval,extendInt = "downX",tol = 1e-10,maxiter=10000) #extendInt="downX" is actually doing nothing here becasue of the constraint
+  interval = c(p_hat,1) #for the upper bound, MLE to MLE+10 (+10 was arbitrary and I could probably have been more clever in how I chose it)
+  upper = uniroot(lrt_stat_minus_cutoff,interval,extendInt = "upX",tol = 1e-10,maxiter=10000) #extendint="upX" is extending the interval looking for an up crossing. This is in case the +10 was not enough.
+  return(c(estimate=p_hat,lower=lower$root,upper=upper$root))
+}
+
+CI_neg_bi(y)
+```
+Interval contains the estimate, this is good. I am not sure how else to interpret this interval.
+2.
+c)
+```{r}
+set.seed(345854)
+x=rexp(142,6.4)
+CI_expo = function(x,lambda=6.4,conf=0.95){#shape k is fixed, defaults to 2
+  n = length(x) #getting sample size
+  cutoff = qchisq(1-conf,1,lower.tail = FALSE) #or qchisq(conf,1,lower.tail = TRUE)
+  lambda_hat = 1/mean(x) #the MLE under the alternative, does not change
+  lrt_stat_minus_cutoff = function(lambda_0){
+    if(lambda_0 <=0){ #checking boundaries, lambda must be positive
+      return(Inf)
+    }else{
+      ##AJW## What is k? I deleted it
+      #lrt_stat = 2*n*(k*log(lambda_hat/lambda_0)+(lambda_0/lambda_hat)-1)
+      lrt_stat = 2*n*(log(lambda_hat/lambda_0)+(lambda_0/lambda_hat)-1)
+      return(lrt_stat - cutoff) 
+    }
+  }
+  interval = c(0,lambda_hat) #for the lower bound, using the constraint and the MLE
+  lower = uniroot(lrt_stat_minus_cutoff,interval,extendInt = "downX",tol = 1e-10,maxiter=10000) #extendInt="downX" is actually doing nothing here because of the constraint
+  ##AJW## bad search interval
+  #interval = c(lambda_hat,3) #for the upper bound, MLE to MLE+10 (+10 was arbitrary and I could probably have been more clever in how I chose it)
+  interval = c(lambda_hat,lambda_hat+3)
+  upper = uniroot(lrt_stat_minus_cutoff,interval,extendInt = "upX",tol = 1e-10,maxiter=10000) #extendint="upX" is extending the interval looking for an up crossing. This is in case the +10 was not enough.
+  return(c(estimate=lambda_hat,lower=lower$root,upper=upper$root))
+}
+CI_expo(x)
+```
+2.
+d)
+```{r}
+set.seed(345854)
+g=rgamma(142,12,6.4)
+CI_gamma = function(g,lambda=6.4,m=12,conf=0.95){#shape k is fixed, defaults to 2
+  n = length(g) #getting sample size
+  cutoff = qchisq(1-conf,1,lower.tail = FALSE) #or qchisq(conf,1,lower.tail = TRUE)
+  lambda_hat = m/(mean(g)) #the MLE under the alternative, does not change
+  lrt_stat_minus_cutoff = function(lambda_0){
+    if(lambda_0 <=0){ #checking boundaries, lambda must be positive
+      return(Inf)
+    }else{
+      lrt_stat = 2*n*m*(log(lambda_hat/lambda_0) + (lambda_0/lambda_hat) - 1)
+      return(lrt_stat - cutoff) 
+    }
+  }
+  interval = c(0,lambda_hat) #for the lower bound, using the constraint and the MLE
+  lower = uniroot(lrt_stat_minus_cutoff,interval,extendInt = "downX",tol = 1e-10,maxiter=10000) #extendInt="downX" is actually doing nothing here becasue of the constraint
+  interval = c(0,10)+lambda_hat #for the upper bound, MLE to MLE+10 (+10 was arbitrary and I could probably have been more clever in how I chose it)
+  upper = uniroot(lrt_stat_minus_cutoff,interval,extendInt = "upX",tol = 1e-10,maxiter=10000) #extendint="upX" is extending the interval looking for an up crossing. This is in case the +10 was not enough.
+  return(c(estimate=lambda_hat,lower=lower$root,upper=upper$root))
+}
+
+CI_gamma(g)
+```
+Estimate is contained in the interval, this is good. The interval also contains the true value of lambda. 
+2.
+e)
+```{r}
+set.seed(345854)
+c=rpois(142,6.4)
+CI_poisson = function(c,lambda=6.4,conf=0.95){#shape k is fixed, defaults to 2
+  n = length(c) #getting sample size
+  cutoff = qchisq(1-conf,1,lower.tail = FALSE) #or qchisq(conf,1,lower.tail = TRUE)
+  lambda_hat = mean(c) #the MLE under the alternative, does not change
+  lrt_stat_minus_cutoff = function(lambda_0){
+    if(lambda_0 <=0){ #checking boundaries, lambda must be positive
+      return(Inf)
+    }else{
+      lrt_stat = 2*n*(lambda_hat*log(lambda_hat/lambda_0) + lambda_0 - lambda_hat)
+      return(lrt_stat - cutoff) 
+    }
+  }
+  interval = c(0,lambda_hat) #for the lower bound, using the constraint and the MLE
+  lower = uniroot(lrt_stat_minus_cutoff,interval,extendInt = "downX",tol = 1e-10,maxiter=10000) #extendInt="downX" is actually doing nothing here becasue of the constraint
+  interval = c(0,10)+lambda_hat #for the upper bound, MLE to MLE+10 (+10 was arbitrary and I could probably have been more clever in how I chose it)
+  upper = uniroot(lrt_stat_minus_cutoff,interval,extendInt = "upX",tol = 1e-10,maxiter=10000) #extendint="upX" is extending the interval looking for an up crossing. This is in case the +10 was not enough.
+  return(c(estimate=lambda_hat,lower=lower$root,upper=upper$root))
+}
+
+CI_poisson(c)
+```
+Interval contains the estimate, and the true value of 6.4, although it pretty close to the upper bound.
+

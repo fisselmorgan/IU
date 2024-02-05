@@ -1,0 +1,347 @@
+---
+title: "hw4"
+author: "Morgan Fissel"
+date: "2/18/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Useful functions
+```{r}
+dinvgamma = function(x, shape, scale, log = FALSE) {
+#scale is beta
+#shape is alpha
+y=1/x
+out = dgamma(y,shape,rate=scale,log=TRUE)-2*log(x)
+if(log){out}else{exp(out)}
+}
+dinvweibull = function(x, shape, rate = 1, log = FALSE) {
+#shape is k
+#rate is lambda
+y=1/x
+out = dweibull(y,shape,scale=rate,log=TRUE)-2*log(x)
+if(log){out}else{exp(out)}
+}
+```
+Dataset
+```{r}
+data(faithful); y = faithful$eruptions[faithful$waiting<71]
+```
+Question 1
+a) Fit the MLE for the Gamma distribution to the data. Report the log-likelihood and a 98%
+confidence interval for the parameters using the asymptotic normal distribution of the MLE
+and an estimate of the Fisher Information obtained using the output from optimHess. Do
+you think you can distinguish α from 1?
+```{r}
+mle_gamma_shape_rate = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    alpha = theta[1]
+    beta = theta[2]
+    sum(dgamma(y,shape=alpha,rate=beta,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    alpha = exp(theta[1])
+    beta = exp(theta[2])
+    sum(dgamma(y,shape=alpha,rate=beta,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = exp(fit$par[1])
+  fit$par[2] = exp(fit$par[2])
+  names(fit$par) = c("alpha","beta") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,loglik=fit$value))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,loglik=fit$value,vcov=fit_vcov))
+  }
+}
+# fit the MLE for the Gamma dist to data
+fitted_mle_gamma = mle_gamma_shape_rate(y)
+print(fitted_mle_gamma$loglik)
+#fitting model
+fitted_mle_gamma = mle_gamma_shape_rate(y) 
+print(fitted_mle_gamma)
+
+#plotting
+plot(density(y))
+y_vals_plot = seq(min(y),max(y),length.out = 1000)
+dens_fitted_plot = dgamma(y_vals_plot,
+                          shape=fitted_mle_gamma$theta["alpha"],
+                          rate=fitted_mle_gamma$theta["beta"]
+                          )
+lines(dens_fitted_plot~y_vals_plot,lty=2,col="blue")
+# alpha 98% conf.
+est_alpha = fitted_mle_gamma$theta["alpha"]
+var_est_alpha = fitted_mle_gamma$vcov["alpha","alpha"]
+sd_est_alpha = sqrt(var_est_alpha)
+ci_alpha = est_alpha + c(-1,1)*sd_est_alpha*qnorm(0.98)
+print(ci_alpha)
+
+# beta 98% conf.
+est_beta = fitted_mle_gamma$theta["beta"]
+var_est_beta = fitted_mle_gamma$vcov["beta","beta"]
+sd_est_beta = sqrt(var_est_beta)
+ci_beta = est_beta + c(-1,1)*sd_est_beta*qnorm(0.98)
+print(ci_beta)
+```
+Can be distinguished from 1, the shape is not very similar at all to the original density. 
+
+b)
+Fit the MLE for the Inverse-Gamma distribution to the data. Report the log-likelihood and
+a 98% confidence interval for the parameters using the asymptotic normal distribution of the 
+MLE and an estimate of the Fisher Information obtained using the output from optimHess.
+Do you think you can distinguish α from 1?
+```{r}
+mle_invgamma_shape_rate = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    alpha = theta[1]
+    beta = theta[2]
+    sum(dinvgamma(y,shape=alpha,scale=beta,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    alpha = exp(theta[1])
+    beta = exp(theta[2])
+    sum(dinvgamma(y,shape=alpha,scale=beta,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = exp(fit$par[1])
+  fit$par[2] = exp(fit$par[2])
+  names(fit$par) = c("alpha","beta") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,loglik=fit$value))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,loglik=fit$value,vcov=fit_vcov))
+  }
+}
+# fit the MLE for the invGamma dist to data
+fitted_mle_invgamma = mle_invgamma_shape_rate(y)
+print(fitted_mle_invgamma$loglik)
+#fitting model
+fitted_mle_invgamma = mle_invgamma_shape_rate(y) 
+print(fitted_mle_gamma)
+
+#plotting
+plot(density(y))
+y_vals_plot = seq(min(y),max(y),length.out = 1000)
+dens_fitted_plot = dinvgamma(y_vals_plot,
+                          shape=fitted_mle_invgamma$theta["alpha"],
+                          scale=fitted_mle_invgamma$theta["beta"]
+                          )
+lines(dens_fitted_plot~y_vals_plot,lty=2,col="blue")
+# alpha 98% conf.
+est_alpha = fitted_mle_invgamma$theta["alpha"]
+var_est_alpha = fitted_mle_invgamma$vcov["alpha","alpha"]
+sd_est_alpha = sqrt(var_est_alpha)
+ci_alpha = est_alpha + c(-1,1)*sd_est_alpha*qnorm(0.98)
+print(ci_alpha)
+
+# beta 98% conf.
+est_beta = fitted_mle_invgamma$theta["beta"]
+var_est_beta = fitted_mle_invgamma$vcov["beta","beta"]
+sd_est_beta = sqrt(var_est_beta)
+ci_beta = est_beta + c(-1,1)*sd_est_beta*qnorm(0.98)
+print(ci_beta)
+```
+Closer to 1, however still distinguishable from the original curve.
+
+c) Fit the MLE for the Weibull distribution to the data. Report the log-likelihood and a 98%
+confidence interval for the parameters using the asymptotic normal distribution of the MLE
+and an estimate of the Fisher Information obtained using the output from optimHess. Do
+you think you can distinguish k from 1?
+```{r}
+mle_weibull_shape_scale = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    k = theta[1]
+    lambda = theta[2]
+    sum(dweibull(y,shape=k,scale=lambda,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    k = exp(theta[1])
+    lambda = exp(theta[2])
+    sum(dweibull(y,shape=k,scale=lambda,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = exp(fit$par[1])
+  fit$par[2] = exp(fit$par[2])
+  names(fit$par) = c("k","lambda") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,loglik=fit$value))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,loglik=fit$value,vcov=fit_vcov))
+  }
+}
+
+fit_shape_scale_w = mle_weibull_shape_scale(y)
+
+est_k = fit_shape_scale_w$theta["k"]
+var_est_k = fit_shape_scale_w$vcov["k","k"]
+sd_est_k = sqrt(var_est_k)
+ci_k = est_k + c(-1,1)*sd_est_k*qnorm(0.98)
+print(ci_k)
+
+est_lambda = fit_shape_scale_w$theta["lambda"]
+var_est_lambda = fit_shape_scale_w$vcov["lambda","lambda"]
+sd_est_lambda = sqrt(var_est_lambda)
+ci_lambda = est_lambda + c(-1,1)*sd_est_lambda*qnorm(0.98)
+print(ci_lambda)
+
+plot(density(y),ylim=c(0,1.6))
+y_vals_plot = seq(min(y),max(y),length.out = 1000)
+dens_fitted_plot = dweibull(y_vals_plot,shape=fit_shape_scale_w$theta["k"],scale=fit_shape_scale_w$theta["lambda"])
+lines(dens_fitted_plot~y_vals_plot,lty=2,col="purple")
+```
+k does some to be distinguishable from 1 in this case. It does not seem to follow the original curve very closely.
+
+d)  Fit the MLE for the Inverse-Weibull distribution to the data. Report the log-likelihood and
+a 98% confidence interval for the parameters using the asymptotic normal distribution of the
+MLE and an estimate of the Fisher Information obtained using the output from optimHess.
+Do you think you can distinguish k from 1?
+```{r}
+mle_weibull_shape = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    k = theta[1]
+    lambda = theta[2]
+    sum(dinvweibull(y,shape=k,rate=lambda,log=TRUE))
+  }
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    k = exp(theta[1])
+    lambda = exp(theta[2])
+    sum(dinvweibull(y,shape=k,rate=lambda,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[1] = exp(fit$par[1])
+  fit$par[2] = exp(fit$par[2])
+  names(fit$par) = c("k","lambda") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,loglik=fit$value))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,loglik=fit$value,vcov=fit_vcov))
+  }
+}
+
+fit_shape_w = mle_weibull_shape(y)
+
+est_k = fit_shape_w$theta["k"]
+var_est_k = fit_shape_w$vcov["k","k"]
+sd_est_k = sqrt(var_est_k)
+ci_k = est_k + c(-1,1)*sd_est_k*qnorm(0.98)
+print(ci_k)
+
+est_lambda = fit_shape_w$theta["lambda"]
+var_est_lambda = fit_shape_w$vcov["lambda","lambda"]
+sd_est_lambda = sqrt(var_est_lambda)
+ci_lambda = est_lambda + c(-1,1)*sd_est_lambda*qnorm(0.98)
+print(ci_lambda)
+
+plot(density(y),ylim=c(0,1.6))
+y_vals_plot = seq(min(y),max(y),length.out = 1000)
+dens_fitted_plot = dweibull(y_vals_plot,shape=fit_shape_scale_w$theta["k"],scale=fit_shape_scale_w$theta["lambda"])
+lines(dens_fitted_plot~y_vals_plot,lty=2,col="purple")
+```
+k is still distinguishable from 1 here, probably further away than the regular weibull.
+
+e) Fit the MLE for the Log-Normal distribution to the data. Report the log-likelihood and a
+98% confidence interval for the parameters using the asymptotic normal distribution of the
+MLE and an estimate of the Fisher Information obtained using the output from optimHess.
+Does this model fit the data as well as (or better than) the previous four? Do you think this
+distribution fits the data sufficiently well to model the data?
+```{r}
+mle_lnorm = function(y,vcov=TRUE){
+  #takes advantage of scoping
+  loglik_fun = function(theta){#scoping, looks for y one environment up
+    mu = theta[1]
+    sigma = theta[2]
+    sum(dlnorm(y,mu,sigma,log=TRUE))
+  }
+  #log-likelihood for sigma=exp(theta[2])
+  loglik_fun_trans = function(theta){#scoping, looks for y one environment up
+    mu = theta[1]
+    sigma = exp(theta[2])
+    sum(dlnorm(y,mu,sigma,log=TRUE))
+  }
+  #using optim to get MLE
+  #we use the _trans function and then undo the transformation for the estimate without the transformation
+  fit_trans = optim(c(0,0),loglik_fun_trans,control=list(fnscale=-1)) #scoping, looks for y one environment up
+  fit = fit_trans
+  fit$par[2] = exp(fit$par[2])
+  names(fit$par) = c("mu","sigma") #NAMES ARE GOOD
+  if(!vcov){
+    return(list(theta=fit$par,loglik=fit$value))
+  }else{
+    #using optimHess to get the Hessian
+    #we use the regular log-likelihood function
+    fit_hess = optimHess(fit$par,loglik_fun)#scoping, looks for y one environment up
+    #we convert the Hessian into a variance-covariance matrix
+    #inversion is achieved using solve
+    fit_vcov = solve(-fit_hess)
+    rownames(fit_vcov) = colnames(fit_vcov) = names(fit$par)#NAMES ARE COPIED HERE
+    return(list(theta=fit$par,loglik=fit$value,vcov=fit_vcov))
+  }
+}
+
+fit_lnorm = mle_lnorm(y)
+
+est_mu = fit_lnorm$theta["mu"]
+var_est_mu = fit_lnorm$vcov["mu","mu"]
+sd_est_mu = sqrt(var_est_mu)
+ci_mu = est_mu + c(-1,1)*sd_est_mu*qnorm(0.98)
+print(ci_mu)
+
+est_sigma = fit_lnorm$theta["sigma"]
+var_est_sigma = fit_lnorm$vcov["sigma","sigma"]
+sd_est_sigma = sqrt(var_est_sigma)
+ci_sigma = est_sigma + c(-1,1)*sd_est_sigma*qnorm(0.98)
+print(ci_sigma)
+
+plot(density(y),ylim=c(0,1.6))
+y_vals_plot = seq(min(y),max(y),length.out = 1000)
+dens_fitted_plot = dlnorm(y_vals_plot,fit_lnorm$theta["mu"],fit_lnorm$theta["sigma"])
+lines(dens_fitted_plot~y_vals_plot,lty=2,col="purple")
+```
+I'd say this model is at least as good if not better than the other to model the data. It seems to most accurately represent it while maintaining smoothness.

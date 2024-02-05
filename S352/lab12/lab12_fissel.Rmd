@@ -1,0 +1,291 @@
+---
+title: "Cross-Validation"
+author: "Morgan Fissel 2000498470"
+date: "4/11/2022"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 0. Structure of this Lab
+Section 1 explains the general idea of the framework of Cross-Validation (CV). We are going to be evaluating models based entirely on their predictive performance.
+
+Section 2 provides some `R` code for doing CV. We will focus on the workflow of CV and use functions in `R` that fit models and have output objects for which there are built-in prediction methods using the function `predict`. However, we will write wrappers around fitting functions and predictions functions so that we can control the workflow. Section 2 will demonstrate CV using the `lm` function in `R`, which fits linear models.
+
+Section 3 lays out your tasks. You will be doing CV using the same kinds of workflows, but with the `glm` function instead of the `lm` function. The `glm` function fits generalized linear models and allows for distributions of the data that are not Gaussian. Section 3.0 will demonstrate using `glm` to produce a fitted model and using `predict` to get various kinds of predictions for that model.
+
+For turning in the lab you must make the following modifications to this file.
+
+1. Change the author field in the preamble above to your name followed by a space and then your IUID#  (all together in quotes so it is a string).
+
+2. Rename the file by putting your last name in the file name. For instance, I would call my solution file `lab12_womack.Rmd`
+
+3. DO NOT MODIFY Sections 0, 1, 2, and 3.0. Where there are tasks that require you to write an `R` chunk, do NOT delete the instructions, just place your chunk after the instructions for the task. Where there are questions that you need to answer, do NOT delete the questions, simply place your answer to a question in a new paragraph after the question is posed. If a task asks you to repeat procedures from previous tasks, you do not need to copy the intructions or questions from previous tasks, but you must repeat all of the procedures from the tasks completely and answer all of the questions in the new context. You can put all of your code for such a task into a single `R` chunk if doing so makes you happy.
+
+# 1. The Idea of Cross Validation from Prediction Validation
+Cross validation is trying to mimic what might be considered a scientific gold standard, predictions based on existing data applied to a new dataset. The gold standard would be the following procedure: 1) Design experiment, 2) Collect data $y_{old}$, 3) Choose $\theta^*$ to minimize a loss $L(\theta; y=y_{old})$, 4) Collect new data $y_{new}$, 5) Determine prediction loss $L(\theta^*;y=y_{new})$. Here $\theta$ is loosely defined. It would come from some action space.
+
+Of course, at any on point in time, there should be competing scientific theories. So, in actuality, at step 3) there are actually many different theories each represented by a loss function $L_1,\ldots,L_t$ and actions $\theta_1,\ldots,\theta_t$. So, at 3) we actually get best actions $\theta_1^*,\ldots,\theta_t^*$. Now, this has an implication for 5). Now we are computing predictive loss over many different theories $L_j(\theta_j^*;y=y_{new})$ and the `best' theory should be the one with the smallest predictive loss.
+
+Now, it is important to note that the way in which we determine our action in the past is not necessarily how we will want to evaluate that actions performance in the future. For example, we might compute an MLE from past data and try to minimize the distance between the observed future values and some point prediction. So, our action loss would be $\ell_{y_{old}}(\theta)$ and our prediction loss would be something like $\sum (y_{new,i}-y_{pred,i})^2$.
+
+Without the ability to design follow-up experiments, the statistician is left with trying to estimate prediction error. This is done by splitting the data into two pieces: a <it>training</it> piece and a <it>test</it> piece. Sometimes, when there is enough data, a third set of data will be set aside, referred to as a <it>validation</it> set, but we will not consider that now.
+
+The idea is that the training data is to act like <it>old</it> data and the test data is to act like <it>new</it> data. The models are all fit on the the training data and then evaluated on the test data. The model that performs the best in terms of loss on the test data is then chosen as the best model for analyzing the data.
+
+# 2. The Moving Pieces of Simple Cross Validation
+First, we need a way to do data splits, SPLIT. Second, we need a fit function, FIT, that will choose a value of $\theta$ based on the existing data (priduce a fitted model). Third, we need a cross validation measure, CVM, that will take in the output from FIT and the test data and return a loss.
+
+## 2.1 Simple CV
+Here is an easy example using using the linear model. Here, we will split the data in half.
+```{r}
+SPLIT_half = function(n){
+  ind = c(1:n)
+  train_ind = sort(sample(ind,floor(n/2)))
+  return(train_ind)
+}
+FIT_lm = function(data,train_ind,form,outcome_name){
+  n = dim(data)[1]
+  data_train = subset(data,c(1:n)%in%train_ind)
+  mod = lm(formula=form,data=data_train)
+  return(mod)
+}
+CVM_lm = function(fit,data,train_ind,form,outcome_name){
+  n = dim(data)[1]
+  data_test = subset(data,!(c(1:n)%in%train_ind))
+  pred = predict(fit,newdata=data_test)
+  actual = data_test[,outcome_name]
+  mean_squared_error = mean((pred-actual)^2)
+  return(mean_squared_error)
+}
+CV_simple_fun = function(data,SPLIT,FIT,CVM,...){
+  n = dim(data)[1]
+  train_ind = SPLIT(n)
+  fit = FIT(data=data,train_ind=train_ind,...)
+  cvm = CVM(fit=fit,data=data,train_ind=train_ind,...)
+  return(cvm)
+}
+```
+
+We can test this function using the `faithful` data.
+```{r}
+data(faithful)
+form = eruptions ~ waiting
+outcome_name = "eruptions"
+CV_simple_fun(faithful,SPLIT_half,FIT_lm,CVM_lm,form=form,outcome_name=outcome_name)
+```
+
+We can also use this to look at the fit of polynomial models.
+```{r}
+form = eruptions ~ poly(waiting,5)
+outcome_name = "eruptions"
+CV_simple_fun(faithful,SPLIT_half,FIT_lm,CVM_lm,form=form,outcome_name=outcome_name)
+```
+
+## 2.2 Using the same split
+Now, one issue is that we might want to use the same split to analyze both models. We do not want the cross validation measure to let one model to win simply because it got a nice split. Let's rewrite our wrapper function so that SPLIT can be either a function or an index for training data. We will also make it return the index of the training data as well as the cross validation measure.
+```{r}
+CV_simple_fun_new = function(data,SPLIT,FIT,CVM,...){
+  n = dim(data)[1]
+  if(class(SPLIT)=="function"){
+    train_ind = SPLIT(n)
+  }else{
+    train_ind = SPLIT
+  }
+  fit = FIT(data=data,train_ind=train_ind,...)
+  cvm = CVM(fit=fit,data=data,train_ind=train_ind,...)
+  return(list(cvm=cvm,train_ind = train_ind))
+}
+```
+
+We can use our CV function on one model and then use the same split to look at another model.
+```{r}
+form_1 = eruptions ~ waiting
+cv_poly_1 = CV_simple_fun_new(faithful,SPLIT_half,FIT_lm,CVM_lm,form=form_1,outcome_name=outcome_name)
+form_5 = eruptions ~ poly(waiting,5)
+cv_poly_5 = CV_simple_fun_new(faithful,cv_poly_1$train_ind,FIT_lm,CVM_lm,form=form_5,outcome_name=outcome_name)
+print(c(cv_poly_1$cvm,cv_poly_5$cvm))
+print(cbind(cv_poly_1$train_ind,cv_poly_5$train_ind))
+```
+
+## 2.3 Splits of different percents
+As one last modification for a simple split, we should make a split function that works with a split of a different percent of the data in the training data.
+```{r}
+SPLIT_percent = function(n,p=0.5){
+  ind = c(1:n)
+  train_ind = sort(sample(ind,floor(n*p)))
+  return(train_ind)  
+}
+```
+
+We could use this to make a split function for different percents.
+```{r}
+SPLIT_fifth = function(n){return(SPLIT_percent(n,1/5))}
+```
+
+Now, we can use this function to do CV where only a fifth of the data is used as training data.
+```{r}
+cv_poly_1 = CV_simple_fun_new(faithful,SPLIT_fifth,FIT_lm,CVM_lm,form=form_1,outcome_name=outcome_name)
+cv_poly_5 = CV_simple_fun_new(faithful,cv_poly_1$train_ind,FIT_lm,CVM_lm,form=form_5,outcome_name=outcome_name)
+print(c(cv_poly_1$cvm,cv_poly_5$cvm))
+print(cbind(cv_poly_1$train_ind,cv_poly_5$train_ind))
+```
+
+## 2.4 K-fold Cross Validation
+K-fold cross validation splits that data into K groups and uses each of the K sets as a test dataset and the other K-1 as training data. First, let's write a split function that can make the splits that we need. Let's test it to see if it is doing what we want.
+```{r}
+SPLIT_Kfold = function(n,K){
+  ind = c(1:n)
+  out = list()
+  for(i in 1:(K-1)){
+    size = length(ind)*1/(K-i+1)
+    split = sort(sample(ind,size))
+    ind = ind[ !( ind %in% split ) ]
+    out[[i]] = split
+  }
+  out[[K]] = ind
+  return(out)
+}
+SPLIT_Kfold(34,6)
+```
+
+Now, let's modify our simple CV function to do K-fold CV. We will let it either input a list of splits for K_SPLIT or a number of splits to do.
+```{r}
+CV_Kfold = function(data,K_SPLIT,FIT,CVM,...){
+  n = dim(data)[1]
+  if(class(K_SPLIT)=="list"){
+    split_ind = K_SPLIT
+    K = length(K_SPLIT)
+  }else{
+    split_ind = SPLIT_Kfold(n,K_SPLIT)
+    K = K_SPLIT
+  }
+  cvm = rep(NA,K)
+  ind = c(1:n)
+  for(i in 1:K){
+    train_ind = ind[ -split_ind[[i]] ]
+    fit = FIT(data=data,train_ind=train_ind,...)
+    cvm[i] = CVM(fit=fit,data=data,train_ind=train_ind,...)
+  }
+  return(list(cvm = cvm, avg_cvm = mean(cvm), split_ind = split_ind))
+}
+```
+
+Now, let's use this to do 5-fold cross validation to analyze our two models.
+```{r}
+cv_poly_1 = CV_Kfold(faithful,K_SPLIT = 5,FIT_lm,CVM_lm,form=form_1,outcome_name=outcome_name)
+cv_poly_5 = CV_Kfold(faithful,K_SPLIT = cv_poly_1$split_ind,FIT_lm,CVM_lm,form=form_5,outcome_name=outcome_name)
+print(c(cv_poly_1$avg_cvm,cv_poly_5$avg_cvm))
+```
+
+Now let's do 10-fold cross validation.
+```{r}
+cv_poly_1 = CV_Kfold(faithful,K_SPLIT = 10,FIT_lm,CVM_lm,form=form_1,outcome_name=outcome_name)
+cv_poly_5 = CV_Kfold(faithful,K_SPLIT = cv_poly_1$split_ind,FIT_lm,CVM_lm,form=form_5,outcome_name=outcome_name)
+print(c(cv_poly_1$avg_cvm,cv_poly_5$avg_cvm))
+```
+
+Now that we have these functions working, let's do 10-fold cross validation on models with polynomials of order D=1 through D=15. It will be easiest if we use a loop. We should also do our splits before running any model and just store the average cvm from each model.
+```{r}
+K = 10
+K_SPLIT = SPLIT_Kfold(dim(faithful)[1],K)
+maxD = 15
+avg_cvm = rep(NA,maxD)
+for(D in 1:maxD){
+  form = eruptions ~ poly(waiting,D)
+  cv_poly_D = CV_Kfold(faithful,K_SPLIT,FIT_lm,CVM_lm,form=form,outcome_name=outcome_name)
+  avg_cvm[D] = cv_poly_D$avg_cvm
+}
+print(avg_cvm)
+print(which(avg_cvm==min(avg_cvm)))
+```
+
+It looks like a fairly high degree polynomial fits the data the best.
+
+# 3 Exercises for class: Using glm instead of lm
+## 3.0
+We know that the eruption times must be postiive, and so the normal model must be wrong. We can fit the a generalized linear model which will model the eruptions as coming from a gamma distribution. Because the mean of a gamma distribution must also be positive, we will link it to a linear predictor by using the log function. For now, you can just think of this as a black box. An function call using glm has some extra arguments that lm does not have. In particular, it needs a family which also takes in the link function.
+```{r}
+mod_gamma = glm(eruptions~waiting,data=faithful,family=Gamma(link="log"))
+summary(mod_gamma)
+newdata = data.frame(
+  eruptions = NA,
+  waiting=seq(min(faithful$waiting),max(faithful$waiting),length.out=100)
+  )
+pred_1 = predict(mod_gamma,newdata=newdata,type="response")
+pred_2 = predict(mod_gamma,newdata=newdata,type="link")
+plot(pred_1~exp(pred_2)) #recall, link was log function, so this is undoing the link to get to the response, so this should be a line with slope 1 and intercept 0, we are just checking to see that everything is behaving like we expect
+```
+
+Predict for glm works basically the same was as predict for lm, except that it needs the additional argument `type="response"` to make predictions on the same scale as the response. The call would be `predict(fit,newdata,type="response")` where `fit` is the output model from `glm` and `newdata` is the data frame on which we want to do predictions. 
+
+## 3.1 Task 1
+Write FIT and CVM functions for a glm using Gamma family with log link. Use mean absolute error loss between the actual and fitted values for the cross-validation loss. The function should be structure like those for lm at the beginning of this lab.
+
+```{r}
+FIT_glm = function(data,train_ind,form,outcome_name){
+  n = dim(data)[1]
+  data_train = subset(data,c(1:n)%in%train_ind)
+  mod = glm(formula=form,data=data_train,family=Gamma(link="log"))
+  return(mod)
+}
+CVM_glm = function(fit,data,train_ind,form,outcome_name){
+  n = dim(data)[1]
+  data_test = subset(data,!(c(1:n)%in%train_ind))
+  pred = predict(fit,newdata=data_test,type="response")
+  actual = data_test[,outcome_name]
+  mean_absolute_error = mean(abs(pred-actual))
+  return(mean_absolute_error)
+}
+```
+
+## 3.2 Task 2
+Setting K=n for K-fold cross validation, do leave one out cross validation comparing a degree 1 polynomial model to a degree 5 polynomial model using the glm functions from Problem 1.
+```{r}
+n = nrow(faithful) #length(data)
+cv_poly_1 = CV_Kfold(faithful,n,FIT_glm,CVM_glm,form=form_1,outcome_name=outcome_name)
+cv_poly_5 = CV_Kfold(faithful,n,FIT_glm,CVM_glm,form=form_5,outcome_name=outcome_name)
+c(cv_poly_1$avg_cvm,cv_poly_5$avg_cvm)
+
+# could do this instead
+#n = nrow(faithful)
+#splits = SPLIT_Kfold(n,K=n)
+#CV_Kfold(data,splits,fit,cvm,args)
+```
+
+## 3.3 Task 3
+Do 10-fold cross validation on polynomial models of degree D=1 to D=15 and determine which model fits the data the best from this crass validation exercise.
+```{r}
+K = 10
+K_SPLIT = SPLIT_Kfold(dim(faithful)[1],K)
+maxD = 15
+avg_cvm = rep(NA,maxD)
+for(D in 1:maxD){
+  form = eruptions ~ poly(waiting,D)
+  cv_poly_D = CV_Kfold(faithful,K_SPLIT,FIT_glm,CVM_glm,form=form,outcome_name=outcome_name)
+  avg_cvm[D] = cv_poly_D$avg_cvm
+}
+avg_cvm
+which(avg_cvm==min(avg_cvm))
+```
+Looks like a fairly high degree polynomial fits the data the best. \n
+
+## 3.4 Task 4
+Repeat the procedure in Problem 3 for a different set of random splits. Do you get the same answer for best model as you did in problem 3?
+```{r}
+#K = 10
+#K_SPLIT = SPLIT_Kfold(dim(faithful)[1],K)
+maxD = 15
+avg_cvm = rep(NA,maxD)
+for(D in 1:maxD){
+  form = eruptions ~ poly(waiting,D)
+  cv_poly_D = CV_Kfold(faithful,n/2,FIT_glm,CVM_glm,form=form,outcome_name=outcome_name)
+  avg_cvm[D] = cv_poly_D$avg_cvm
+}
+avg_cvm
+which(avg_cvm==min(avg_cvm))
+```
+Yes, indeed, except one time I ran it and got a higher degree polynomial! (10) (with nearly the same spread of values for 10 and 8). 

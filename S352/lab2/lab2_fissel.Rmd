@@ -1,0 +1,361 @@
+---
+title: 'Lab: Optimization and Estimators'
+author: "Morgan Fissel 2000498470"
+date: "1/21/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 0. Structure of this Lab
+Section 1 explains a little about optimization in `R`. Numerical optimization (finding maxima or minima of functions) is one of the most important computational topics in statistics and numerical analysis.
+
+Section 2 provides some `R` code and explains one method for defining estimators through minimizing a loss function. We will define loss functions that give the mean and median as estimators. We will then use `optimize` to compute the mean and median by minimizing these loss functions.
+
+Section 3 lays out your tasks. Section 3.0 will demonstrate the code for an estimator called the Huber estimator, which comes from the Huber loss function.
+
+For turning in the lab you must make the following modifications to this file.
+
+1. Change the author field in the preamble above to your name followed by a space and then your IUID#  (all together in quotes so it is a string).
+
+2. Rename the file by putting your last name in the file name. For instance, I would call my solution file `lab2_womack.Rmd`
+
+3. DO NOT MODIFY Sections 0, 1, 2, and 3.0. Where there are tasks that require you to write an `R` chunk, do NOT delete the instructions, just place your chunk after the instructions for the task. Where there are questions that you need to answer, do NOT delete the questions, simply place your answer to a question in a new paragraph after the question is posed. If a task asks you to repeat procedures from previous tasks, you do not need to copy the intructions or questions from previous tasks, but you must repeat all of the procedures from the tasks completely and answer all of the questions in the new context. You can put all of your code for such a task into a single `R` chunk if doing so makes you happy.
+
+
+# 1. A little bit of a note on numerical optimization in `R`
+Numerical optimization in `R` is generally done (without loading additional libraries) using two different commands, `optimize` and `optim`. The function `optimize` is for one dimensional optimization on a closed interval. It is very fast and uses a combination of a golden section search and polynomial interpolation. The function `optim` is for multidimensional optimization. We will focus on `optimize` for this lab.
+
+`optimize` takes seven arguments:
+
+1. `f`, the function to be optimized. Its first argument must be the variable we are optimizing over and it can take other arguments.
+
+2. `interval`, the interval over which to search for the optimum. It is a vector of lenght two.
+
+3. `...`, the additional arguments to `f`. They must be names and must appear in this position in the sequence of arguments.
+
+4. `lower`, defaults to `min(interval)`.
+
+5. `upper`, defaults to `max(interval)`.
+
+6. `maximum`, a logical (`TRUE` or `FALSE`) that determines whether to minimize (`FALSE`, the default) or maximimize (`TRUE`).
+
+7. `tol`, desired accuracy. Default is `.Machine$double.eps^0.25` which is about 1e-4 on most machines. I like to use `.Machine$double.eps^0.5` which is about 1e-8 on most machines.
+
+`optimize` has two outputs: (1) `minimum` (`maximum`), the value where the optimum occurs; and (2) `objective`,the optimal value of the function. These are in a `list` and can be accessed using `$`.
+
+Two issues arise with `optimize`. The first is that it is greedy and if `f` has two optima in the interval then `optimize` could find a local and not global optimum. The second is that the optimum might lie outside the interval. This is a harder problem to solve because there is no default way to extend the interval. Let's use `optimize` on some functions. 
+```{r optimize_first_examples}
+f = function(a){
+  a^2-2*a+1
+}
+optimize(f,c(-10,10),tol=.Machine$double.eps^0.5)
+
+g = function(a){
+  (a-2)^2*(a+2)^2
+}
+optimize(g,c(-10,0),tol=.Machine$double.eps^0.5)
+optimize(g,c(0,10),tol=.Machine$double.eps^0.5)
+optimize(g,c(-10,10),tol=.Machine$double.eps^0.5)
+```
+
+Now, let's do it with a function with more arguments.
+```{r optimize_second_example}
+h = function(a,phi,theta){
+  (phi+theta/(1+theta)-a)^2
+}
+phi = 5
+theta = -6
+optimize(h,c(-100,100),phi=phi,theta=theta,tol=.Machine$double.eps^0.5)
+```
+
+We usually do not want to just print the output of the function, but rather we want to store it and access it later.
+```{r}
+opt_h_out = optimize(h,c(-100,100),phi=phi,theta=theta,tol=.Machine$double.eps^0.5)
+print(opt_h_out)
+print(opt_h_out$minimum)
+print(opt_h_out$objective)
+```
+
+# 2. Minimum Loss Estimators
+Decision theory is tied to minimizing losses (or maximizing utilities) by taking some action. These losses are usually computed as expectations with respect to some distribution. This idea will be incredibly important when we talk about Maximum Likelihood Estimators (MLEs) later in the semester as well as when we discuss Bayesian estimators.
+
+##   2.1 Population Quantities of Interst
+###  2.1.1 Infinite Population Setting
+We start with a random variable $Y$ and define a local loss function $\rho(Y;a)$ where $a$ is an action we can take to minimize the loss. The set of possible actions we can take is called the action space and usually denoted by $\mathcal{A}$. For example, we could use squared error loss $\rho(Y;a) = (Y-a)^2$ with action space $\mathcal{A}=(-\infty,\infty)$. 
+For squared error loss $\rho(Y;a)$ is minimized at $a^*=Y$.
+$Y$ is a random variable, so it is just a function that takes a random element of an underlying probability space and maps it to a real number. Each possible value $Y$ it could take would lead to a different action $a$ that minimizes the local loss. 
+
+This is not really useful for thinking about actions that are meant to describe the distribution of $Y$. In order to do that, we need to somehow get rid of the randomness in $Y$. One way to do this (and the one we will focus on) is taking the expectation of the loss. We define the risk $R$ associated with the loss $\rho$ as the expected loss, $R(a) = E[\rho(Y;a)]$. The expectation is taken over the distribution for the randomm variable $Y$.
+Our best action is the action $a^*$ that minimizes this risk function.
+\[
+a^* = \text{arg}\!\min_{a\in\mathcal{A}} R(a).
+\]
+
+The choice of $\rho$ is important because it determines the properties of $R$ and $a^*$. We really want $a^*$ to be uniquely defined and to describe an aspect of the distribution of $Y$ that we care about. Later in the semester, we will talk about concepts like convexity that will guarantee that $a^*$ is uniquely defined. For now, all of the $\rho(Y;a)$ that I give you will have unique minimizers $a^*$.
+
+Let's return to our example of $\rho(Y;a)=(Y-a)^2$. We can expand this as $\rho(Y;a)=Y^2-2Ya+a^2$ and compute
+\[
+R(a) = E[Y^2]-2aE[Y]+a^2.
+\]
+For this risk to make sense, we need $E[Y^2]<\infty$. This would also guarantee that $E[|Y|]<\infty$ and so $E[Y]$ would also make sense. When $E[Y^2]<\infty$, we get a best action of $a^* = E[Y]$. In fact, it is the global minimizer of $R(a)$.
+
+One last thing to say here is that $a^*$ is not something we can directly compute because we usually do not know the distribution of $Y$ (and so we cannot compute the expectation and minimize it). The quantity $a^*$ is a theoretical quantity that we want to learn about from data. We should view the process of defining $\rho$, computing $R$, and obtaining $a^*$ as the way in which we define that theoretical quantity that describes some aspect of the population. What we get to do is collect data by observing random draws from the distribution that would generate $Y$. Then we estimate $a^*$ by making a guess at it using this data. We will return to this in Section 2.3.
+
+### 2.1.2 Finite Population Setting 
+The definition of $R(a)$ we used above requires us to be able to take an expectation. It allowed us to describe an interesting aspect of the distribution of $Y$. This required $Y$ to be a random variable. In the context of finite populations, this is a bit of a weird concept when we are trying to learn about a finite population. The finite population is a fixed thing. It exists in the world. The values of $Y$ in the population are not random. How do we define this concept of an expectation over a finite population?
+
+Let's be concrete and have our population be described by units whose identities are given by integers. Specifically, for a population of size $N$, we will arbitrarily label the units by $j=1,\ldots,N$. For each unit there is a value of the quantity $Y$. For unit $j$ let's call this value $Y_j$.
+
+The usual way to do think about finite populations is to imagine the following process for generating a value of $Y$. First, put the population of units in a bag (like putting names into a hat). Second, draw a unit from the bag (draw a unit uniformly at random). Let's call this unit $i$. Third, record $Y$ as $Y=Y_i$. This makes a random variable $Y$ that takes the value $y$ with probability
+\[
+P(Y=y) = \frac{\sum_{j=1}^N I(Y_j=y)}{N} = \frac{\# \{j:Y_j=y\}}{N}.
+\]
+where $I$ is the indicator function. It value $I(A)=1$ if the statement $A$ is true and $I(A)=0$ if the statement $A$ is false. 
+
+The resulting probability function is a discrete probability function because the population is finite. We define the expectation over the finite population using this distribution. Specifically, the expectation of some quantity $g(Y)$ is given by
+\[
+E[g(Y)] = \frac{1}{N} \sum_{j=1}^N g(Y_j).
+\]
+Thus, we can define the finite population risk as
+\[
+R(a) = \frac{1}{N} \sum_{j=1}^N \rho(Y_j;a).
+\]
+We can define the finite population quantity of interest similar to how we did before:
+\[
+a^* = \text{arg}\!\min_{a\in\mathcal{A}} R(a) = \text{arg}\!\min_{a\in\mathcal{A}} \frac{1}{N} \sum_{j=1}^N \rho(Y_j;a).
+\]
+Return once again to our example with $\rho(Y;a) = (Y-a)^2$. As you might expect, we get the population arithmetic average for $a^*$,
+\[
+a^* = E[Y] = \frac{1}{N} \sum_{j=1}^N Y_j.
+\]
+
+### 2.1.3 Getting the Median as a Quantity of Interest
+If we use the local loss function $\rho(Y;a) = |Y-a|$ then we get $a^* = \text{median}(Y)$. The risk function is $R(a)=E[|Y-a|]$ and only requires $E[|Y|]$ to be finite. $E[Y^2]$ need not be finite, like we needed for squared error loss. As you have already learned, the median is a quantity that makes sense regardless of whether any moments exist. It is only defined using probabilities. However, to get the median as a quantity that minimizes an expected loss, we need $E[|Y|]<\infty$. 
+
+Every finite population only has a finite number of observations and so a finite number of realized values $y$. Thus a finite population has finite moments of all positive powers. This is why it is useful to think about infinite populations. If the population itself is drawn from a process that does not have a finite variance, then it is a bad idea to use squared error loss even though the finite population necessarily has finite variance.
+
+##  2.2 Estimating Quantites of Interest
+We are interested in estimating $a^*$ using a sample $y_1, \ldots, y_n$ of observations from the population. We are going to restrict ourselves to simple random sampling without replacement. When sampling happens in a different way, then we might want to do more complicated modeling. Sampling is a massive topic in and of itself and usually is best addressed in specific settings.
+
+When our sample of size $n$ is chosen completely at random from the population, how should we use the sample to estimate $a^*$? One way is to use our data to try to estimate the risk $R(a)$ by some function $\widehat{R}(a;y_1,\ldots,y_n)$. Then we could define our estimator $\widehat{a}$ by
+\[
+\widehat{a} = \text{arg}\!\min_{a\in \mathcal{A}} \widehat{R}(a;y_1,\ldots,y_n).
+\]
+As long as 
+$\widehat{R}(a;y_1,\ldots,y_n)$
+gets arbitrarily close to $R(a)$ with high probability as the sample size $n$ increases, then our estimate $\widehat{a}$ should get arbitrarily close to $a^*$ with high probability as the sample size increases.
+
+But how should we make our estimate $\widehat{R}(a;y_1,\ldots,y_n)$? Because $R(a)$ is the expected value of $\rho(Y;a)$, we can take advantage of the Law of Large Numbers and estimate the expectation by taking the sample average
+\[
+\widehat{R}(a;y_1,\ldots,y_n)
+=
+\frac{1}{n}\sum_{i=1}^n \rho(y_i;a).
+\]
+This function is called the empirical risk function.
+The Law of Large numbers guarantees that
+\[
+\widehat{R}(a;y_1,\ldots,y_n)
+\stackrel{P}{\longrightarrow} R(a)
+\]
+whenever $R(a)$ makes sense.
+Under some pretty mild conditions on $\rho$, we will get
+\[
+\widehat{a}
+\stackrel{P}{\longrightarrow} a^*.
+\]
+Woohoo! This at least gives us some guarantee that our $\widehat{a}$ makes sense relative to $a^*$. 
+
+The Law of Large Numbers does not give us a way to think about the distribution of $\widehat{a}$. The Central Limit Theorem is the theorem that lets us think about the distribution of a sample average when the samole size is large. If we could apply the Central Limit Theorem to $\widehat{R}(a;y_1,\ldots,y_n)$, then we might be able to use it to get an idea of the distribution of $\widehat{a}$. 
+In order to use the Central Limit Theorem, we need to choose $\rho(Y;a)$ so that it has a finite second moment for every $a$.
+We will talk about this in a couple of different contexts later this semester. 
+
+##   2.3 Computing the Estimators in Practice
+Let's code up a few empirical risk functions and use `optimize` to compute the implied estimator. The first two local loss functions we will use are squared error loss and absolute loss.
+```{r first_loss_functions}
+mean_squared_error_loss = function(a,y){
+  out = mean((y-a)^2)
+  return(out)
+}
+mean_absolute_error_loss = function(a,y){
+  out = mean(abs(y-a))
+  return(out)
+}
+```
+
+We will test these out with a built-in dataset `rock` (in the `datasets` package) where there is a variable that measures (in some sense) shape of pores in some rock samples.
+```{r testing_with_rock}
+data(rock)
+y = rock$shape
+plot(density(y,from=0),main="Density Estimate from Rock Sample")
+
+lower = min(y)
+upper = max(y)
+interval = c(lower,upper)
+
+a_hat_mean = optimize(mean_squared_error_loss,interval,y=y,tol=.Machine$double.eps^0.5)
+print(c(est=a_hat_mean$minimum, mean=mean(y)))
+
+a_hat_median = optimize(mean_absolute_error_loss,interval,y=y,tol=.Machine$double.eps^0.5)
+print(c(est=a_hat_median$minimum, median=median(y)))
+```
+
+Of course, the estimate of the median of the population is not a perfect match to the median of the sample because the loss function does not jibe perfectly with rules for computing the median in a finite dataset (such as averaging the middle two observations in a dataset with an even number of observations). Note that we took advantage of knowing that the mean and the median had to be in the range of the data in order to set the interval for the search.
+
+
+# 3. Tasks
+##  3.0 Huber Loss
+The Huber loss tries to make a compromise between the quadratic loss (which is sensitive to outliers) and the absolute error loss (which is very robust). It is quadratic loss for $|y-a|<c$ for some caliper $c$ and linear loss otherwise (matching slope at $c$ and continuous). Formally, we are going to define it as
+\[
+\rho_{\text{Huber}}(y;a,c) = 
+\begin{cases}
+\frac{(y-a)^2}{2} & |y-a|\leq c\\
+c\,(|y-a|-c/2) & |y-a|>c
+\end{cases}.
+\]
+The Huber risk is the expectation of the Huber loss.
+
+We can code up the empirical Huber risk function by computing the mean of the Huber loss for our dataset. We then get the Huber estimator by minimizing this empirical risk.
+```{r huber_loss}
+mean_huber_loss = function(a,y,caliper){
+  # first, a check to make sure the caliper is >0
+  if(caliper==0){caliper=1}else if(caliper<0){caliper= -caliper}
+  # we use ifelse to do logical comparisons on a vector
+  huber_loss = ifelse(abs(y-a)<=caliper,(y-a)^2/2,caliper*abs(y-a)-caliper^2/2)
+  out = mean(huber_loss)
+  return(out)
+}
+
+caliper = 0.1
+a_hat_huber = optimize(mean_huber_loss,interval,y=y,caliper=caliper,tol=.Machine$double.eps^0.5)
+a_hat_huber$minimum
+
+caliper = 0.2
+a_hat_huber = optimize(mean_huber_loss,interval,y=y,caliper=caliper,tol=.Machine$double.eps^0.5)
+a_hat_huber$minimum
+
+caliper = 0.05
+a_hat_huber = optimize(mean_huber_loss,interval,y=y,caliper=caliper,tol=.Machine$double.eps^0.5)
+a_hat_huber$minimum
+```
+
+For a large caliper, the minimizing the Huber risk reproduces the mean. For a small caliper, the minimizing Huber risk reproduces the median. Let's plot the estimate against the caliper.
+```{r huber_plot}
+M = 10000
+caliper = seq(0.001,max(y)-min(y),length.out=M)
+a_hat_huber = rep(NA,M)
+for(i in 1:M){
+  a_hat_huber[i] = optimize(mean_huber_loss,interval,y=y,caliper=caliper[i],tol=.Machine$double.eps^0.5)$minimum
+}
+plot(a_hat_huber~caliper,type="l",xlab="Caliper",ylab="Estimate",main="Estimates from Huber Risk")
+```
+
+Notice that minimizing Huber loss does not have to give an estimate that is a monotone function of the caliper ranging from the median to the mean. The estimator can lie outside of the interval bounded by the mean and median and the curve can bend around. This is because of sensitivity to the location of data points around the median when the caliper is small.
+
+##  3.1 Task 1
+In this task, you will code up a loss function called the hyperbolic loss function. It has an additional input like the Huber loss function, but is not defined piecewise. Similar to the Huber loss, the hyperbolic loss tries to compromise between squared error and absolute loss. The hyperbolic loss function is defined as
+\[
+\rho(Y;a,\delta) = \sqrt{\delta^2+(Y-a)^2} - \delta.
+\]
+
+Your task, define a function that takes in a scalar `a`, a vector of data `y`, and a scalar `delta` and outputs the sample average hyperbolic loss. Use `optimize` to get an $\widehat{a}$ using this empirical risk function, the `y` we have from `rock$shape`, and $\delta=0.5$.
+```{r}
+hyperbolic_loss = function(a,y,delta){
+  return(mean(sqrt(delta^2+(y-a)^2)-delta))
+}
+optimize(hyperbolic_loss,interval = c(range(rock$shape)), delta=0.5, y=rock$shape)
+
+```
+##  3.2 Task 2
+Using $M=10000$ points for $\delta$ between $0.001$ and $\max(y)-\min(y)$ (the same values we used for the caliper for the Huber estimator), plot the estimates you get from hyperbolic loss as a function of $\delta$. Overlay the estimates we got using the Huber estimator on this plot (set $c=\delta$ for the Huber estimator). Add horizontal lines for the sample mean and sample median as computed using the loss functions in Section 2.3. Make sure that `ylim` in `plot` is used so that the curves are fully shown. Make sure to make the curves different colors and to include a legend.
+```{r}
+hyperbolic_from_risk_minimization = function(x,ind=c(1:length(x)),delta){
+  x = x[ind]
+
+  g = function(theta){
+    return(mean(hyperbolic_loss(theta,x,delta)))
+  }
+    optimize_output = optimize(f=g,interval=range(x))
+  
+  return(optimize_output$minimum)
+}
+
+V_hyperbolic_from_risk_minimization = Vectorize(hyperbolic_from_risk_minimization,
+                                                vectorize.args = "delta")
+
+delta = seq(0.01,max(y)-min(y),length.out = 10000)
+hyperbolic_estimates = V_hyperbolic_from_risk_minimization(x=y,delta=delta)
+plot(hyperbolic_estimates~delta, ylim = range(c(a_hat_huber,hyperbolic_estimates)),
+     main="Estimates from Hyperbolic Risk vs Huber Risk", xlab="delta/caliper", ylab="estimate")
+lines(a_hat_huber~caliper,col='blue',lty=1)
+abline(h=a_hat_mean, col='green',lty=2)
+abline(h=a_hat_median, col='red',lty=2)
+legend("topleft", bty="n",
+       legend=c("Hyperbolic Estimate","Huber Estimate","a_hat_mean","a_hat_median"), 
+       col=c("black","blue","green","red"),lty=c(1,1,2,2))
+```
+##  3.3 Task 3
+Respond to the following prompts:
+
+1. Describe the curves you got for the Huber and hyperbolic estimators. How are they similar/different?
+The hyperbolic estimate is much smoother than the Huber estimate. 
+When delta is a little less than 0.1 both slopes start decreasing.
+Hyperbolic may be a better estimate in this case as Huber likely contains some values large enough to change the slope slower.   
+2. What values of caliper and $\delta$ do you prefer? Why?
+Probably in the range of 0.1 to 0.2 as this seems to be the smoothest slopes between both estimates. 
+
+##  3.4 Task 4
+Use the following chunk to load a different dataset, the populations of a random sample of size 49 from the 196 largest US cities in 1930.
+```{r new_dataset}
+library(boot)
+data(bigcity)
+y = bigcity$x
+
+```
+Repeat the Tasks 2 and 3 on this new `y`. You do have to obtain the estimators from squared error, absolute error, and Huber loss function.
+```{r}
+mean_squared_error_loss = function(a,y){
+  out = mean((y-a)^2)
+  return(out)
+}
+mean_absolute_error_loss = function(a,y){
+  out = mean(abs(y-a))
+  return(out)
+}
+lower = min(y)
+upper = max(y)
+interval = c(lower,upper)
+
+a_hat_mean = optimize(mean_squared_error_loss,interval,y=y,tol=.Machine$double.eps^0.5)
+print(c(est=a_hat_mean$minimum, mean=mean(y)))
+a_hat_median = optimize(mean_absolute_error_loss,interval,y=y,tol=.Machine$double.eps^0.5)
+print(c(est=a_hat_median$minimum, median=median(y)))
+M = 10000
+caliper = seq(0.001,max(y)-min(y),length.out=M)
+a_hat_huber = rep(NA,M)
+for(i in 1:M){
+  a_hat_huber[i] = optimize(mean_huber_loss,interval,y=y,caliper=caliper[i],tol=.Machine$double.eps^0.5)$minimum
+}
+plot(a_hat_huber~caliper,type="l",xlab="Caliper",ylab="Estimate",main="Estimates from Huber Risk")
+V_hyperbolic_from_risk_minimization = Vectorize(hyperbolic_from_risk_minimization,
+                                                vectorize.args = "delta")
+
+delta = seq(0.01,max(y)-min(y),length.out = 10000)
+hyperbolic_estimates = V_hyperbolic_from_risk_minimization(x=y,delta=delta)
+plot(hyperbolic_estimates~delta, ylim = range(c(a_hat_huber,hyperbolic_estimates)),
+     main="Estimates from Hyperbolic Risk vs Huber Risk", xlab="delta/caliper", ylab="estimate")
+lines(a_hat_huber~caliper,col='blue',lty=1)
+abline(h=a_hat_mean, col='green',lty=2)
+abline(h=a_hat_median, col='red',lty=2)
+legend("topleft", bty="n",
+       legend=c("Hyperbolic Estimate","Huber Estimate","a_hat_mean","a_hat_median"), 
+       col=c("black","blue","green","red"),lty=c(1,1,2,2))
+```
+1. Curves are quite similar, Huber is once again a little more extreme of a slope change, while hyperbolic is quite a gentle slope.
+2. I would prefer values in the range of 200-300 from either of the slopes as they are similar here.
+Respond to the following prompt:
+
+3. All of the estimators we have defined in this lab are measures of center because they come from local loss functions that are symmetric about $a$. What measure of center is the best? How would you even go about answering such a question? I want your thoughts here, I am not sure that I can even answer this question in a satisfactory way. I want you to think seriously about this and provide a serious answer. No "I would just take the mean, lolz."
+Overall I much prefer the slopes of the hyperbolic estimator, because of generally how smooth the curve is. I think a smoother curve means we can likely gather more information from the curve or even gain insights into the generation of the data potentially. So again, I'd say the hyperbolic estimator is probably the best, but only because the curves it produces are quite gentle.
